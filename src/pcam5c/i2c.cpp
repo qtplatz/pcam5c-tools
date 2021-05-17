@@ -57,37 +57,25 @@ i2c::open( const char * device, int address )
         device_ = device;
 
         if ( ::ioctl( fd_, I2C_SLAVE, address ) < 0 ) {
-
-            error_code_ = std::error_code( errno, std::system_category() );
             ::close( fd_ );
-
             fd_ = (-1);
-
             return false;
         }
 
     } else {
         ::perror( "i2c::open" );
-        error_code_ = std::error_code( errno, std::system_category() );
         return false;
     }
     return true;
 }
 
-void
-i2c::error_clear()
-{
-    error_code_ = std::error_code();
-}
-
 bool
-i2c::write( const uint8_t * data, size_t size )
+i2c::write( const uint8_t * data, size_t size ) const
 {
     if ( fd_ >= 0 ) {
         auto rcode = ::write( fd_, data, size );
         if ( rcode < 0 ) {
             ::perror("i2c::write");
-            error_code_ = std::error_code( errno, std::system_category() );
         }
         return rcode == size;
     }
@@ -95,13 +83,12 @@ i2c::write( const uint8_t * data, size_t size )
 }
 
 bool
-i2c::read( uint8_t * data, size_t size )
+i2c::read( uint8_t * data, size_t size ) const
 {
     if ( fd_ >= 0 ) {
         auto rcode = ::read( fd_, data, size );
         if ( rcode < 0 ) {
             ::perror("i2c::read");
-            error_code_ = std::error_code( errno, std::system_category() );
         }
         return rcode == size;
     }

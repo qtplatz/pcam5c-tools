@@ -4,6 +4,7 @@ cmake_minimum_required (VERSION 2.8.9)
 project ( pcam5c )
 
 list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}" )
+set ( CMAKE_CXX_STANDARD 17 )
 
 find_package( Boost )
 if ( Boost_FOUND )
@@ -18,9 +19,12 @@ include_directories(
   )
 
 add_executable( ${PROJECT_NAME}
+  main.cpp
   pcam5c.cpp
   i2c.cpp
   i2c.hpp
+  ov5640.cpp
+  ov5640.hpp
   )
 
 target_link_libraries( ${PROJECT_NAME} LINK_PUBLIC
@@ -28,5 +32,3 @@ target_link_libraries( ${PROJECT_NAME} LINK_PUBLIC
   )
 
 install( TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT tools )
-
-
