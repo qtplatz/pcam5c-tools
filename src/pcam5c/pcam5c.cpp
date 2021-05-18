@@ -25,20 +25,18 @@
 #include "i2c.hpp"
 #include "pcam5c.hpp"
 #include "ov5640.hpp"
+#include <algorithm>
 #include <array>
-#include <iostream>
+#include <chrono>
+#include <cstdlib>
+#include <thread>
 #include <iomanip>
+#include <iostream>
 
-// bool
-// pcam5c::reg_read( i2c_linux::i2c& i2c, const uint16_t& reg, uint8_t * data, size_t size ) const
-// {
-//     return i2c.read_reg16( reg, data, size );
-// }
+extern bool __verbose;
 
-bool
-pcam5c::read_all( i2c_linux::i2c& i2c )
-{
-    std::pair< const uint16_t, const char * > regs [] = {
+namespace {
+    static const std::vector< std::pair< const uint16_t, const char * > > __regs = {
         { 0x3007,   "CLOCK ENABLE03" }
         , { 0x3008, "SYSTEM CTROL0" }
         , { 0x300a, "CHIP ID HIGH BYTE" }
@@ -173,8 +171,88 @@ pcam5c::read_all( i2c_linux::i2c& i2c )
         , { 0x3c00, "5060HZ CTRL00" }
     };
 
+    static const std::pair< uint16_t, uint8_t > __cfg_init [] =
+	{
+		{0x3008, 0x42} //[7]=0 Software reset; [6]=1 Software power down; Default=0x02
+		, {0x3103, 0x03} //[1]=1 System input clock from PLL; Default read = 0x11
+		, {0x3017, 0x00}//[3:0]=0000 MD2P,MD2N,MCP,MCN input; Default=0x00
+		, {0x3018, 0x00}//[7:2]=000000 MD1P,MD1N, D3:0 input; Default=0x00
+		, {0x3034, 0x18}//[6:4]=001 PLL charge pump, [3:0]=1000 MIPI 8-bit mode
+
+		//PLL1 configuration
+		, {0x3035, 0x11}//[7:4]=0001 System clock divider /1, [3:0]=0001 Scale divider for MIPI /1
+		, {0x3036, 0x38}//[7:0]=56 PLL multiplier
+		, {0x3037, 0x11}//[4]=1 PLL root divider /2, [3:0]=1 PLL pre-divider /1
+		, {0x3108, 0x01}//[5:4]=00 PCLK root divider /1, [3:2]=00 SCLK2x root divider /1, [1:0]=01 SCLK root divider /2
+		//PLL2 configuration
+		, {0x303D, 0x10}		//[5:4]=01 PRE_DIV_SP /1.5, [2]=1 R_DIV_SP /1, [1:0]=00 DIV12_SP /1
+		, {0x303B, 0x19}//[4:0]=11001 PLL2 multiplier DIV_CNT5B = 25
+		, {0x3630, 0x2e}
+		, {0x3631, 0x0e}
+		, {0x3632, 0xe2}
+		, {0x3633, 0x23}
+		, {0x3621, 0xe0}
+		, {0x3704, 0xa0}
+		, {0x3703, 0x5a}
+		, {0x3715, 0x78}
+		, {0x3717, 0x01}
+		, {0x370b, 0x60}
+		, {0x3705, 0x1a}
+		, {0x3905, 0x02}
+		, {0x3906, 0x10}
+        , {0x3901, 0x0a}
+		, {0x3731, 0x02}
+		//VCM debug mode
+		, {0x3600, 0x37}
+		, {0x3601, 0x33}
+		//System control register changing not recommended
+		, {0x302d, 0x60}
+		//??
+		, {0x3620, 0x52}
+		, {0x371b, 0x20}
+		//?? DVP
+		, {0x471c, 0x50}
+
+		, {0x3a13, 0x43}
+		, {0x3a18, 0x00}
+		, {0x3a19, 0xf8}
+		, {0x3635, 0x13}
+		, {0x3636, 0x06}
+		, {0x3634, 0x44}
+		, {0x3622, 0x01}
+		, {0x3c01, 0x34}
+		, {0x3c04, 0x28}
+		, {0x3c05, 0x98}
+		, {0x3c06, 0x00}
+		, {0x3c07, 0x08}
+		, {0x3c08, 0x00}
+		, {0x3c09, 0x1c}
+		, {0x3c0a, 0x9c}
+		, {0x3c0b, 0x40}
+		, {0x503d, 0x00} //[7]=1 color bar enable, [3:2]=00 eight color bar
+		, {0x3820, 0x46} //[2]=1 ISP vflip, [1]=1 sensor vflip
+		, {0x300e, 0x45}
+		, {0x4800, 0x14}
+		, {0x302e, 0x08}
+		, {0x4300, 0x6f}
+		, {0x501f, 0x01}
+		, {0x4713, 0x03}
+		, {0x4407, 0x04}
+		, {0x440e, 0x00}
+		, {0x460b, 0x35}
+		, {0x460c, 0x20}//[1]=0 DVP PCLK divider manual control by 0x3824[4:0]
+        , {0x3824, 0x01}//[4:0]=1 SCALE_DIV=INT(3824[4:0]/2)
+		, {0x5000, 0x07}
+		, {0x5001, 0x03}
+	};
+
+}
+
+bool
+pcam5c::read_all( i2c_linux::i2c& i2c )
+{
     uint8_t value = 0;
-    for ( const auto& reg: regs ) {
+    for ( const auto& reg: __regs ) {
         if ( auto value = i2c.read_reg( reg.first ) ) {
             std::cout << reg.first << "\t=\t"
                       << std::hex << std::setw(2) << unsigned(*value)
@@ -186,10 +264,52 @@ pcam5c::read_all( i2c_linux::i2c& i2c )
     return true;
 }
 
-bool
-pcam5c::startup( i2c_linux::i2c& i2c )
+void
+pcam5c::read_regs( i2c_linux::i2c& iic, const std::vector< std::string >& regs )
 {
-    if ( auto chipid = ov5640().chipid( i2c ) ) {
+    for ( const auto& sreg: regs ) {
+        char * p_end;
+        auto reg = std::strtol( sreg.c_str(), &p_end, 0 );
+        if ( reg >= 0x3000 && reg < 0x6040 ) {
+            const char * label = "";
+            auto it = std::lower_bound(__regs.begin(), __regs.end(), reg
+                                       , []( const auto& a, const auto& b ){ return a.first < b; } );
+            if ( it != __regs.end() )
+                label = it->second;
+            if ( auto value = iic.read_reg( reg ) ) {
+                std::cout << std::hex << reg << "\t=\t"
+                          << std::setw(2) << unsigned(*value)
+                          << "\t" << label << std::endl;
+            }
+        } else {
+            std::cerr << "specified register : " << sreg << ", (" << std::hex << reg << ") out of range\n";
+        }
+    }
+}
+
+bool
+pcam5c::write_reg( i2c_linux::i2c& iic, const std::pair<uint16_t, uint8_t>& r, bool verbose ) const
+{
+    bool result = iic.write_reg( r.first, r.second );
+
+    if ( verbose ) {
+        const char * label = "";
+        auto it = std::lower_bound(__regs.begin(), __regs.end(), r.first
+                                   , []( const auto& a, const auto& b ){ return a.first < b; } );
+        if ( it != __regs.end() )
+            label = it->second;
+        std::cout << "write reg: " << std::hex << r.first << "\t<--\t" << unsigned( r.second )
+                  << "\t" << std::boolalpha << result  << "\t" << label << std::endl;
+    }
+    return result;
+}
+
+bool
+pcam5c::startup( i2c_linux::i2c& iic )
+{
+    using namespace std::chrono_literals;
+
+    if ( auto chipid = ov5640().chipid( iic ) ) {
         std::cout << "chipid: "
                   << std::hex << unsigned(chipid->first)
                   << ", " << unsigned(chipid->second)
@@ -199,6 +319,12 @@ pcam5c::startup( i2c_linux::i2c& i2c )
             return false;
         }
     }
-    read_all( i2c );
+    write_reg( iic, {0x3103, 0x11}, __verbose );
+    write_reg( iic, {0x3008, 0x82}, __verbose );
+    std::this_thread::sleep_for(1.0us);
+
+    for ( const auto& r: __cfg_init )
+        write_reg( iic, r, __verbose );
+
     return true;
 }

@@ -39,6 +39,7 @@
 #endif
 
 const static char * i2cdev = "/dev/i2c-0";
+bool __verbose = true;
 
 int
 main( int argc, char **argv )
@@ -51,6 +52,7 @@ main( int argc, char **argv )
         description.add_options()
             ( "help,h",        "Display this help message" )
             ( "device,d",      po::value< std::string >()->default_value("/dev/i2c-0"), "i2c device" )
+            ( "rreg,r",        po::value<std::vector<std::string> >()->multitoken(), "read regs" )
             ;
         po::positional_options_description p;
         p.add( "args",  -1 );
@@ -65,11 +67,17 @@ main( int argc, char **argv )
     if ( vm.count( "device" ) ) {
         i2cdev = vm[ "device" ].as< std::string >().c_str();
     }
-    std::cerr << "i2c: " << i2cdev << std::endl;
 #endif
+    std::cerr << "i2c: " << i2cdev << std::endl;
 
     if ( auto i2c = std::make_unique< i2c_linux::i2c >() ) {
         if ( i2c->open( i2cdev, 0x3c ) ) {
+#if HAVE_BOOST
+            if ( vm.count( "rreg" ) ) {
+                pcam5c().read_regs( *i2c, vm[ "rreg" ].as< std::vector< std::string > >() );
+                return 0;
+            }
+#endif
             pcam5c().startup( * i2c );
         } else {
             std::cerr << "Failed to acquire bus access and/or talk to slave." << std::endl;

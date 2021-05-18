@@ -63,7 +63,7 @@ namespace i2c_linux {
             return {};
         }
 
-        inline bool write_reg16( const uint16_t& reg, uint8_t data ) const {
+        inline bool write_reg( const uint16_t& reg, uint8_t data ) const {
             std::array< uint8_t, sizeof(reg) + 1 > a= { uint8_t(reg >> 8u), uint8_t(reg & 0xff), data };
             return write( a.data(), a.size() );
         }

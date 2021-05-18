@@ -24,6 +24,8 @@
 
 #pragma once
 
+#include <vector>
+
 namespace i2c_linux {
     class i2c;
 }
@@ -32,4 +34,7 @@ class pcam5c {
 public:
     bool read_all( i2c_linux::i2c& );
     bool startup( i2c_linux::i2c& );
+    void read_regs( i2c_linux::i2c&, const std::vector< std::string >& );
+    //bool write_reg( i2c_linux::i2c&, uint16_t reg, uint8_t val, bool verbose = true ) const;
+    bool write_reg( i2c_linux::i2c&, const std::pair<uint16_t,uint8_t>&, bool verbose = true ) const;
 };
