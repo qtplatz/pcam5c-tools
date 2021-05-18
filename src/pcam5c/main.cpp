@@ -53,6 +53,7 @@ main( int argc, char **argv )
             ( "help,h",        "Display this help message" )
             ( "device,d",      po::value< std::string >()->default_value("/dev/i2c-0"), "i2c device" )
             ( "rreg,r",        po::value<std::vector<std::string> >()->multitoken(), "read regs" )
+            ( "all,a",         "read all registers" )
             ;
         po::positional_options_description p;
         p.add( "args",  -1 );
@@ -75,6 +76,10 @@ main( int argc, char **argv )
 #if HAVE_BOOST
             if ( vm.count( "rreg" ) ) {
                 pcam5c().read_regs( *i2c, vm[ "rreg" ].as< std::vector< std::string > >() );
+                return 0;
+            }
+            if ( vm.count( "all" ) ) {
+                pcam5c().read_all( *i2c );
                 return 0;
             }
 #endif
