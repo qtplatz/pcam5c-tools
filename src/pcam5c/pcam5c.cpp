@@ -41,8 +41,8 @@ pcam5c::read_all( i2c_linux::i2c& i2c )
     uint8_t value = 0;
     for ( const auto& reg: ov5640::regs() ) {
         if ( auto value = i2c.read_reg( reg.first ) ) {
-            std::cout << reg.first << "\t=\t"
-                      << std::hex << std::setw(2) << unsigned(*value)
+            std::cout << std::hex << reg.first << "\t=\t"
+                      << std::setw(2) << unsigned(*value)
                       << "\t" << reg.second << std::endl;
         } else {
             std::cout << "read error" << std::endl;

@@ -44,39 +44,6 @@ ov5640::chipid( i2c_linux::i2c& i2c ) const
     return {};
 }
 
-bool
-ov5640::init( i2c_linux::i2c& ) const
-{
-#if 0
-    uint8_t id_h, id_l;
-    readReg(reg_ID_h, id_h);
-    readReg(reg_ID_l, id_l);
-    if (id_h != dev_ID_h_ || id_l != dev_ID_l_)
-		{
-			/* Does not work. https://www.xilinx.com/support/answers/64193.html
-	      std::stringstream ss;
-	      ss << "Got " << std::hex << id_h << id_l << ". Expected " << dev_ID_h_ << dev_ID_l_;
-			 */
-			char msg[100];
-			snprintf(msg, sizeof(msg), "Got %02x %02x. Expected %02x %02x\r\n", id_h, id_l, dev_ID_h_, dev_ID_l_);
-			throw HardwareError(HardwareError::WRONG_ID, msg);
-		}
-		//[1]=0 System input clock from pad; Default read = 0x11
-		writeReg(0x3103, 0x11);
-		//[7]=1 Software reset; [6]=0 Software power down; Default=0x02
-		writeReg(0x3008, 0x82);
-
-		usleep(1000000);
-
-		size_t i;
-		for (i=0;i<sizeof(OV5640_cfg::cfg_init_)/sizeof(OV5640_cfg::cfg_init_[0]); ++i)
-		{
-			writeReg(OV5640_cfg::cfg_init_[i].addr, OV5640_cfg::cfg_init_[i].data);
-		}
-#endif
-        return false;
-}
-
 namespace {
 
     const std::vector< std::pair< const uint16_t, const char * > > __regs = {
