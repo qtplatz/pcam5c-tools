@@ -9,7 +9,7 @@ set ( CMAKE_CXX_STANDARD 17 )
 find_package( Boost )
 if ( Boost_FOUND )
   message( STATUS "# Boost        : " ${Boost_VERSION} "\t" ${Boost_INCLUDE_DIRS} )
-  find_package( Boost COMPONENTS program_options )
+  find_package( Boost COMPONENTS program_options system filesystem )
   add_definitions( -DHAVE_BOOST=1 )
 endif()
 
@@ -27,8 +27,18 @@ add_executable( ${PROJECT_NAME}
   ov5640.hpp
   )
 
+add_executable( gpio
+  gpio.cpp
+  )
+
 target_link_libraries( ${PROJECT_NAME} LINK_PUBLIC
   ${Boost_LIBRARIES}
   )
 
+target_link_libraries( gpio  LINK_PUBLIC
+  ${Boost_LIBRARIES}
+  )
+
 install( TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT tools )
+
+install( TARGETS gpio RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT tools )
