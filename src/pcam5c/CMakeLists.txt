@@ -1,6 +1,4 @@
 #
-cmake_minimum_required (VERSION 2.8.9)
-
 project ( pcam5c )
 
 list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}" )
