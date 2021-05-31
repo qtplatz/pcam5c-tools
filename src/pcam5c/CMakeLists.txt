@@ -20,6 +20,8 @@ include_directories(
 
 add_executable( ${PROJECT_NAME}
   main.cpp
+  gpio.cpp
+  gpio.hpp
   pcam5c.cpp
   i2c.cpp
   i2c.hpp
@@ -27,18 +29,8 @@ add_executable( ${PROJECT_NAME}
   ov5640.hpp
   )
 
-add_executable( gpio
-  gpio.cpp
-  )
-
 target_link_libraries( ${PROJECT_NAME} LINK_PUBLIC
   ${Boost_LIBRARIES}
   )
 
-target_link_libraries( gpio  LINK_PUBLIC
-  ${Boost_LIBRARIES}
-  )
-
 install( TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT tools )
-
-install( TARGETS gpio RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT tools )

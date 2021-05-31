@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+#include "gpio.hpp"
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 #include <boost/system/system_error.hpp>
@@ -29,29 +30,74 @@
 #include <iostream>
 #include <optional>
 
-class gpio_pin {
-    uint32_t pin_;
-    std::ofstream outf_;
-    std::ifstream inf_;
-    std::string file_;
-public:
-    gpio_pin( uint32_t pin, const std::string& file ) : pin_( pin )
-                                                      , outf_( file, std::ios::out | std::ios::binary )
-                                                      , inf_( file ) {
-    }
-    void operator << ( bool flag ) {
-        outf_ << ( flag ? "1" : "0" ) << std::endl;
-        outf_.flush();
-    }
+gpio::~gpio()
+{
+    if ( auto_unexport_ )
+        unexport();
+}
 
-    int read() {
-        char value;
-        if ( inf_.read( &value, 1 ) )
-            return value;
-        return -1;
-    }
-};
+gpio::gpio( uint32_t num, bool unexport ) : num_( num )
+                                          , auto_unexport_( unexport )
+{
+    __export( num );
+}
 
+bool
+gpio::__export( uint32_t num )
+{
+    boost::filesystem::path dir = std::string( "/sys/class/gpio/gpio" ) + std::to_string( num );
+    boost::system::error_code ec;
+    if ( !boost::filesystem::exists( dir, ec ) ) {
+        std::ofstream of ( "/sys/class/gpio/export" );
+        of << num_;
+    }
+    if ( boost::filesystem::exists( dir, ec ) ) {
+        auto direction = dir / "direction";
+        if ( boost::filesystem::exists( direction, ec ) ) {
+            std::ofstream of ( direction );
+            of << "out";
+        }
+
+        auto path = dir / "value";
+        if ( boost::filesystem::exists( path, ec ) ) {
+            outf_.open( path.string(), std::ios::out | std::ios::binary );
+            inf_.open( path.string(), std::ios::in );
+        }
+    }
+    return true;
+}
+
+bool
+gpio::unexport()
+{
+    boost::system::error_code ec;
+    boost::filesystem::path dir = std::string( "/sys/class/gpio/gpio" ) + std::to_string( num_ );
+    if ( boost::filesystem::exists( dir, ec ) ) {
+        std::ofstream of ( "/sys/class/gpio/unexport" );
+        of << num_;
+    }
+    return true;
+}
+
+void
+gpio::operator << ( bool flag )
+{
+    outf_ << ( flag ? "1" : "0" ) << std::endl;
+    outf_.flush();
+}
+
+int
+gpio::read()
+{
+    char value;
+    if ( inf_.read( &value, 1 ) ) {
+        if ( value == '0' || value == '1' )
+            return value - '0';
+    }
+    return -1;
+}
+
+#if 0
 int
 main( int argc, char **argv )
 {
@@ -116,3 +162,4 @@ main( int argc, char **argv )
     }
     return 0;
 }
+#endif

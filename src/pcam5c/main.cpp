@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+#include "gpio.hpp"
 #include "i2c.hpp"
 #include "pcam5c.hpp"
 #include <array>
@@ -33,10 +34,8 @@
 #include <iomanip>
 #include <memory>
 
-#if HAVE_BOOST
-# include <boost/program_options.hpp>
-# include <boost/endian.hpp>
-#endif
+#include <boost/program_options.hpp>
+#include <boost/endian.hpp>
 
 const static char * i2cdev = "/dev/i2c-0";
 bool __verbose = true;
@@ -44,7 +43,6 @@ bool __verbose = true;
 int
 main( int argc, char **argv )
 {
-#if HAVE_BOOST
     namespace po = boost::program_options;
     po::variables_map vm;
     po::options_description description( argv[ 0 ] );
@@ -54,6 +52,10 @@ main( int argc, char **argv )
             ( "device,d",      po::value< std::string >()->default_value("/dev/i2c-0"), "i2c device" )
             ( "rreg,r",        po::value<std::vector<std::string> >()->multitoken(), "read regs" )
             ( "all,a",         "read all registers" )
+            ( "startup",       "initialize pcam-5c" )
+            ( "gpio",          po::value< uint32_t >()->default_value( 960 ), "cam_gpio number" )
+            ( "gpio-set",      po::value< bool >(), "gpio set value [0|1]" )
+            ( "gpio-read",     "gpio read" )
             ;
         po::positional_options_description p;
         p.add( "args",  -1 );
@@ -65,28 +67,41 @@ main( int argc, char **argv )
         return 0;
     }
 
-    if ( vm.count( "device" ) ) {
-        i2cdev = vm[ "device" ].as< std::string >().c_str();
+    if ( vm.count( "gpio-set" ) || vm.count( "gpio-read" ) ) {
+        auto num = vm[ "gpio" ].as< uint32_t >();
+        gpio io( num );
+        if ( vm.count( "gpio-set" ) ) {
+            io << vm[ "gpio-set" ].as< bool >();
+        }
+        if ( vm.count( "gpio-read" ) ) {
+            auto value = io.read();
+            std::cout << value << std::endl;
+        }
+        return 0;
     }
-#endif
-    std::cerr << "i2c: " << i2cdev << std::endl;
 
-    if ( auto i2c = std::make_unique< i2c_linux::i2c >() ) {
-        if ( i2c->open( i2cdev, 0x3c ) ) {
-#if HAVE_BOOST
-            if ( vm.count( "rreg" ) ) {
-                pcam5c().read_regs( *i2c, vm[ "rreg" ].as< std::vector< std::string > >() );
-                return 0;
+    if ( vm.count( "rreg" ) || vm.count( "all" ) || vm.count( "startup" ) ) {
+
+        if ( auto i2c = std::make_unique< i2c_linux::i2c >() ) {
+            if ( vm.count( "device" ) ) {
+                i2cdev = vm[ "device" ].as< std::string >().c_str();
             }
-            if ( vm.count( "all" ) ) {
-                pcam5c().read_all( *i2c );
-                return 0;
+            if ( i2c->open( i2cdev, 0x3c ) ) {
+                if ( vm.count( "rreg" ) ) {
+                    pcam5c().read_regs( *i2c, vm[ "rreg" ].as< std::vector< std::string > >() );
+                    return 0;
+                }
+                if ( vm.count( "all" ) ) {
+                    pcam5c().read_all( *i2c );
+                    return 0;
+                }
+                if ( vm.count( "startup" ) ) {
+                    pcam5c().startup( * i2c );
+                }
+            } else {
+                std::cerr << "Failed to acquire bus access and/or talk to slave." << std::endl;
+                exit(1);
             }
-#endif
-            pcam5c().startup( * i2c );
-        } else {
-            std::cerr << "Failed to acquire bus access and/or talk to slave." << std::endl;
-            exit(1);
         }
     }
 
