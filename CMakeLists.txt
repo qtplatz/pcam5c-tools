@@ -33,6 +33,7 @@ add_definitions( -DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 find_package( Boost 1.75 REQUIRED COMPONENTS date_time regex filesystem thread system program_options serialization iostreams )
 
 set ( DKMS_PACKAGES ) # This variable will be filled via drivers/dkms/dkms.cmake
+set ( KERNELRELEASE "xlnx" )
 
 add_subdirectory ( src )
 
