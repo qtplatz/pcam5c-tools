@@ -31,10 +31,10 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z $cross_target ]; then
-	echo "no cross target defined"
-	exit
+	build_dir=( "$build_root/build-$arch/pcam5c-tools.$config" )
 else
-    build_dir=( "$build_root/build-$cross_target/pcam5c-tools.$config" )
+	build_dir=( "$build_root/build-$cross_target/pcam5c-tools.$config" )
+	CMAKE_TOOLCHAIN_FILE=${cwd}/toolchain-arm-linux-gnueabihf.cmake
 fi
 
 if [ $build_clean = true ]; then
@@ -43,7 +43,6 @@ if [ $build_clean = true ]; then
     exit
 fi
 
-CMAKE_TOOLCHAIN_FILE=${cwd}/toolchain-arm-linux-gnueabihf.cmake
 
 echo "source_dir       : ${source_dir}"
 echo "build_dir        : ${build_dir}"
@@ -69,4 +68,6 @@ if [ $cross_target ]; then
 			echo "Unknown cross_target: $cross_target"
 			;;
     esac
+else
+	cmake "${cmake_args[@]}" $source_dir
 fi

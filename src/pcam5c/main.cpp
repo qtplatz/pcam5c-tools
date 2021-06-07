@@ -54,7 +54,8 @@ main( int argc, char **argv )
             ( "all,a",         "read all registers" )
             ( "startup",       "initialize pcam-5c" )
             ( "gpio-number,n", po::value< uint32_t >()->default_value( 960 ), "cam_gpio number" ) // 906+54
-            ( "gpio",          po::value< bool >(), "gpio set value [0|1] or read value" )
+            ( "gpio",          po::value< std::string >()->default_value("")->implicit_value("read")
+              , "gpio set value [0|1]" )
             ;
         po::positional_options_description p;
         p.add( "args",  -1 );
@@ -66,16 +67,19 @@ main( int argc, char **argv )
         return 0;
     }
 
-    if ( vm.count( "gpio-set" ) || vm.count( "gpio-read" ) ) {
+    if ( ! vm[ "gpio" ].as< std::string >().empty() ) {
         auto num = vm[ "gpio-number" ].as< uint32_t >();
         gpio io( num );
-        if ( vm.count( "gpio" ) ) {
-            if ( vm[ "gpio" ].as< std::string >().empty() ) {
-                auto value = io.read();
-                std::cout << value << std::endl;
-            } else {
-                io << vm[ "gpio" ].as< bool >();
-            }
+        auto arg = vm[ "gpio" ].as< std::string >();
+        if ( arg == "read" ) {
+            auto value = io.read();
+            std::cout << value << std::endl;
+        } else if ( arg == "1" || arg == "true" ) {
+            if ( io << 1 )
+                std::cout << "gpio" << num << "=" << 1 << std::endl;
+        } else if ( arg == "0" || arg == "false" ) {
+            if ( io << 0 )
+                std::cout << "gpio" << num << "=" << 0 << std::endl;
         }
         return 0;
     }

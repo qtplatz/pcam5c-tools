@@ -38,6 +38,6 @@ public:
     ~gpio();
     gpio( uint32_t num, bool auto_unexport = false );
     bool unexport();
-    void operator << ( bool flag );
+    bool operator << ( bool flag );
     int read();
 };

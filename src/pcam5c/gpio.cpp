@@ -79,11 +79,16 @@ gpio::unexport()
     return true;
 }
 
-void
+bool
 gpio::operator << ( bool flag )
 {
     outf_ << ( flag ? "1" : "0" ) << std::endl;
     outf_.flush();
+    if ( !outf_ ) {
+        std::cerr << "file access error\n";
+        return false;
+    }
+    return true;
 }
 
 int
