@@ -1,5 +1,5 @@
 #
-cmake_minimum_required ( VERSION 3.7 )  # for GREATER_EQUAL
+cmake_minimum_required ( VERSION 3.7 )  # Xilinx Vitis (2020.2) contains 3.3.2, which does not support C++17
 cmake_policy( SET CMP0020 NEW )
 cmake_policy( SET CMP0042 NEW )
 cmake_policy( SET CMP0053 NEW )
@@ -7,7 +7,7 @@ cmake_policy( SET CMP0053 NEW )
 project ( pcam5c-tools )
 
 set ( CMAKE_EXPORT_COMPILE_COMMANDS ON )
-set ( CMAKE_INSTALL_PREFIX /opt/pcam5c )
+set ( CMAKE_INSTALL_PREFIX /usr/local )
 
 list( APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules" )
 include (version)
@@ -32,10 +32,9 @@ message( STATUS "## version: " "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATC
 add_definitions( -DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 find_package( Boost 1.75 REQUIRED COMPONENTS date_time regex filesystem thread system program_options serialization iostreams )
 
-add_subdirectory ( src )
+set ( DKMS_PACKAGES ) # This variable will be filled via drivers/dkms/dkms.cmake
 
-if ( CMAKE_CROSSCOMPILING )
-endif( CMAKE_CROSSCOMPILING )
+add_subdirectory ( src )
 
 include( CPackComponent )
 cpack_add_component( pcam5c-tools  DISPLAY_NAME "pcam5c tools" GROUP tools )
@@ -52,5 +51,18 @@ set( CPACK_GENERATOR "DEB" )
 set( CPACK_PACKAGE_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK} )
 set( CPACK_DEBIAN_PACKAGE_MAINTAINER "T. Hondo <toshi.hondo@qtplatz.com>" )
 set( CPACK_DEBIAN_PACKAGE_ARCHITECTURE armhf )
+
+###############################################
+# dkms PACKAGES ---------
+message( STATUS "### top level DKMS_PACKAGES=${DKMS_PACKAGES}" )
+
+foreach( i ${DKMS_PACKAGES} )
+  string( TOUPPER ${i} MODNAME )
+  set ( CPACK_DEBIAN_${MODNAME}_PACKAGE_CONTROL_EXTRA
+    "${CMAKE_BINARY_DIR}/src/drivers/${i}/dkms/postinst;${CMAKE_BINARY_DIR}/src/drivers/${i}/dkms/prerm" )
+  set ( CPACK_DEBIAN_${MODNAME}_PACKAGE_DEPENDS dkms )
+  message( STATUS "DKMS_PACKAGE: ${i} ${MODULE}" )
+endforeach()
+#---------------------------------
 
 include( CPack )
