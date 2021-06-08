@@ -58,22 +58,16 @@ static struct platform_driver __platform_driver;
 static dev_t dgmod_dev_t = 0;
 static struct cdev * __dgmod_cdev;
 static struct class * __dgmod_class;
+static struct platform_device *__pdev;
 
 struct dgmod_driver {
     uint32_t irq;
     const char * label;
     uint64_t irqCount_;
-    void __iomem * reg_csr;
-    void __iomem * reg_descriptor;
-    void __iomem * reg_response;   // this is once time access only allowed (destructive read)
-    uint32_t * dma_ptr;
-    uint32_t phys_source_address;
-    uint32_t phys_destination_address;
+    void __iomem * regs;
     wait_queue_head_t queue;
     int queue_condition;
     struct semaphore sem;
-    uint32_t wp;     // next effective dma phys addr
-    uint32_t readp;  // fpga read phys addr
     struct resource * mem_resource;
 };
 
@@ -81,6 +75,21 @@ static int
 dgmod_proc_read( struct seq_file * m, void * v )
 {
     seq_printf( m, "debug level = %d\n", __debug_level__ );
+    struct dgmod_driver * drv = platform_get_drvdata( __pdev );
+    if ( drv ) {
+        seq_printf( m
+                    , "dgmod mem resource: %x -- %x, map to %p\n"
+                    , drv->mem_resource->start, drv->mem_resource->end, drv->regs );
+        const u32 * p = ( const u32 * )drv->regs;
+        u32 addr = drv->mem_resource->start;
+        for ( u32 i = 0; i < 16; ++i ) {
+            seq_printf( m, "%08x: %08x %08x\t%08x %08x\n", addr, p[0], p[1], p[2], p[3] );
+            addr += 4 * 4;
+            p += 4;
+            if ( i == 7 )
+                seq_printf( m, "\n" );
+        }
+    }
     return 0;
 }
 
@@ -103,6 +112,7 @@ dgmod_proc_write( struct file * filep, const char * user, size_t size, loff_t * 
 static int
 dgmod_proc_open( struct inode * inode, struct file * file )
 {
+    printk( KERN_INFO "" MODNAME " proc_open private_data=%x\n", (u32)file->private_data );
     return single_open( file, dgmod_proc_read, NULL );
 }
 
@@ -236,7 +246,9 @@ dgmod_module_exit( void )
 static irqreturn_t
 handle_interrupt( int irq, void *dev_id )
 {
-    //struct dgmod_driver * drv = dev_id ? platform_get_drvdata( dev_id ) : 0;
+    struct dgmod_driver * drv = dev_id ? platform_get_drvdata( dev_id ) : 0;
+    (void)drv;
+    dev_info( &__pdev->dev, "dgmod handle_interrupt\n" );
     return IRQ_HANDLED;
 }
 
@@ -248,18 +260,18 @@ dgmod_module_probe( struct platform_device * pdev )
     if ( ! drv )
         return -ENOMEM;
 
+    __pdev = pdev;
+
     dev_info( &pdev->dev, "dgmod_module proved [%s]", pdev->name );
 
     for ( int i = 0; i < pdev->num_resources; ++i ) {
         struct resource * res = platform_get_resource( pdev, IORESOURCE_MEM, i );
         if ( res ) {
             void __iomem * regs = devm_ioremap_resource( &pdev->dev, res );
-            /* if ( regs && i == 0 ) // check reg_names[i] */
-            /*     drv->reg_csr = regs; */
-            /* else if ( regs && i == 1 ) */
-            /*     drv->reg_descriptor = regs; */
-            /* else if ( regs && i == 2 ) */
-            /*     drv->reg_response = regs; */
+            if ( regs ) {
+                drv->regs = regs;
+                drv->mem_resource = res;
+            }
             dev_info( &pdev->dev, "dgmod probe resource[%d]: %x -- %x, map to %p\n", i, res->start, res->end, regs );
         }
     }
@@ -285,6 +297,7 @@ dgmod_module_remove( struct platform_device * pdev )
         printk( KERN_INFO "" MODNAME " %s IRQ %d, %x about to be freed\n", pdev->name, irqNumber, pdev->resource->start );
         free_irq( irqNumber, 0 );
     }
+    __pdev = 0;
     return 0;
 }
 
