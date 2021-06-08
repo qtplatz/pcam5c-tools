@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+#include "pretty_print.hpp"
 #include <boost/program_options.hpp>
 #include <boost/json.hpp>
 #include <array>
@@ -77,7 +78,7 @@ main( int argc, char **argv )
             }
             boost::json::object jobj;
             jobj[ "dg" ] = ja;
-            std::cout << boost::json::serialize( jobj);
+            pretty_print( std::cout, jobj );
         }
     }
 
