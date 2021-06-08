@@ -35,6 +35,7 @@
 #include <linux/irq.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/mm.h>
 #include <linux/proc_fs.h> // create_proc_entry
 #include <linux/seq_file.h>
 #include <linux/string.h>
@@ -62,7 +63,6 @@ static struct platform_device *__pdev;
 
 struct dgmod_driver {
     uint32_t irq;
-    const char * label;
     uint64_t irqCount_;
     void __iomem * regs;
     wait_queue_head_t queue;
@@ -70,6 +70,18 @@ struct dgmod_driver {
     struct semaphore sem;
     struct resource * mem_resource;
 };
+
+struct dgmod_cdev_private {
+    u32 node;
+    u32 size;
+};
+
+static int
+dgmod_dev_uevent( struct device * dev, struct kobj_uevent_env * env )
+{
+    add_uevent_var( env, "DEVMODE=%#o", 0666 );
+    return 0;
+}
 
 static int
 dgmod_proc_read( struct seq_file * m, void * v )
@@ -129,6 +141,16 @@ static const struct proc_ops dgmod_proc_file_fops = {
 
 static int dgmod_cdev_open(struct inode *inode, struct file *file)
 {
+    struct dgmod_cdev_private *
+        private_data = devm_kzalloc( &__pdev->dev
+                                     , sizeof( struct dgmod_cdev_private )
+                                     , GFP_KERNEL );
+    if ( private_data ) {
+        private_data->node =  MINOR( inode->i_rdev );
+        private_data->size = 64 * 4;
+        file->private_data = private_data;
+    }
+
     return 0;
 
 }
@@ -136,6 +158,9 @@ static int dgmod_cdev_open(struct inode *inode, struct file *file)
 static int
 dgmod_cdev_release( struct inode *inode, struct file *file )
 {
+    if ( file->private_data ) {
+        devm_kfree( &__pdev->dev, file->private_data );
+    }
     return 0;
 }
 
@@ -144,29 +169,89 @@ static long dgmod_cdev_ioctl( struct file * file, unsigned int code, unsigned lo
     return 0;
 }
 
-static ssize_t dgmod_cdev_read( struct file * file, char __user *data, size_t size, loff_t *f_pos )
+static ssize_t dgmod_cdev_read( struct file * file, char __user* data, size_t size, loff_t* f_pos )
 {
-    return size;
+    dev_info( &__pdev->dev, "dgmod_cdev_read: fpos=%llx, size=%ud\n", *f_pos, size );
+
+    struct dgmod_driver * drv = platform_get_drvdata( __pdev );
+    if ( drv ) {
+        if ( down_interruptible( &drv->sem ) ) {
+            dev_info(&__pdev->dev, "%s: down_interruptible for read faild\n", __func__ );
+            return -ERESTARTSYS;
+        }
+        dgmod_cdev_private * private_data = file->private_data;
+
+        //size_t dsize = drv->mem_resource->end - (drv->mem_resource->start + *f_pos);
+        size_t dsize = private_data->size - *f_pos;
+        if ( dsize > size )
+            dsize = size;
+        if ( copy_to_user( data, (const char *)drv->regs + (*f_pos), dsize ) ) {
+            up( &drv->sem );
+            return -EFAULT;
+        }
+        *f_pos += dsize;
+        up( &drv->sem );
+        return dsize;
+    }
+    return 0;
 }
 
 static ssize_t
 dgmod_cdev_write(struct file *file, const char __user *data, size_t size, loff_t *f_pos)
 {
+    dev_info( &__pdev->dev, "dgmod_cdev_write: fpos=%llx, size=%ud\n", *f_pos, size );
     return size;
 }
 
 static ssize_t
 dgmod_cdev_mmap( struct file * file, struct vm_area_struct * vma )
 {
-    // const unsigned long length = vma->vm_end - vma->vm_start;
-    return 0; // Success
+    int ret = (-1);
+
+    struct dgmod_driver * drv = platform_get_drvdata( __pdev );
+    if ( drv == 0  ) {
+        printk( KERN_CRIT "%s: Couldn't allocate shared memory for user space\n", __func__ );
+        return -1; // Error
+    }
+
+    // Map the allocated memory into the calling processes address space.
+    u32 size = vma->vm_end - vma->vm_start;
+
+    ret = remap_pfn_range( vma
+                           , vma->vm_start
+                           , drv->mem_resource->start
+                           , size
+                           , vma->vm_page_prot );
+    if (ret < 0) {
+        printk(KERN_CRIT "%s: remap of shared memory failed, %d\n", __func__, ret);
+        return ret;
+    }
+
+    return ret;
 }
 
 loff_t
 dgmod_cdev_llseek( struct file * file, loff_t offset, int orig )
 {
-	// struct dgmod_cdev_reader * reader = file->private_data;
-    return file->f_pos;
+    // struct dgmod_cdev_reader * reader = file->private_data;
+    loff_t pos = 0;
+    switch( orig ) {
+    case 0: // SEEK_SET
+        pos = offset;
+        break;
+    case 1: // SEEK_CUR
+        pos + offset;
+        break;
+    case 2: // SEEK_END
+        pos + offset;
+        break;
+    default:
+        return -EINVAL;
+    }
+    if ( pos < 0 )
+        return -EINVAL;
+    file->f_pos = pos;
+    return pos;
 }
 
 static struct file_operations dgmod_cdev_fops = {
@@ -208,6 +293,7 @@ dgmod_module_init( void )
         printk( KERN_ERR "" MODNAME " failed to create class\n" );
         return -ENOMEM;
     }
+    __dgmod_class->dev_uevent = dgmod_dev_uevent;
 
     // make_nod /dev/adc_fifo
     if ( !device_create( __dgmod_class, NULL, dgmod_dev_t, NULL, MODNAME "%d", MINOR( dgmod_dev_t ) ) ) {
@@ -272,8 +358,10 @@ dgmod_module_probe( struct platform_device * pdev )
                 drv->regs = regs;
                 drv->mem_resource = res;
             }
-            dev_info( &pdev->dev, "dgmod probe resource[%d]: %x -- %x, map to %p\n", i, res->start, res->end, regs );
+            dev_info( &pdev->dev, "dgmod probe resource[%d]: %x -- %x, map to %p\n"
+                      , i, res->start, res->end, regs );
         }
+        sema_init( &drv->sem, 1 );
     }
     platform_set_drvdata( pdev, drv );
 
