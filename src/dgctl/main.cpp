@@ -68,13 +68,22 @@ main( int argc, char **argv )
             in.read( reinterpret_cast< char * >( data[ 1 ].data() ), data[1].size() * sizeof( uint32_t ) );
 
             boost::json::array ja;
-            for ( size_t i = 0; i < data[ 0 ].size(); i += 2 ) {
-                boost::json::array a;
-                a.push_back( data[ 0 ].at( i ) );
-                a.push_back( data[ 0 ].at( i + 1 ) );
-                a.push_back( data[ 1 ].at( i ) );
-                a.push_back( data[ 1 ].at( i + 1 ) );
-                ja.push_back( a );
+
+            boost::json::value jv = {
+                { { "flags", data[0].at ( 0 ) }, { "flags_act", data[1].at ( 0 ) } }
+                , { { "flags", data[0].at ( 0 ) }, { "flags_act", data[1].at ( 0 ) } }
+            };
+            ja.push_back( jv );
+            for ( size_t i = 1; i < data[ 0 ].size(); i += 2 ) {
+                boost::json::value jv = {
+                    { { "delay_s", data[ 0 ].at( i ) }, { "width_s", data[ 0 ].at( i + 1 ) } }
+                    , { { "delay_a", data[ 1 ].at( i ) }, { "width_s", data[ 1 ].at( i + 1 ) } }
+                };
+                //a.push_back( data[ 0 ].at( i ) );
+                //a.push_back( data[ 0 ].at( i + 1 ) );
+                //a.push_back( data[ 1 ].at( i ) );
+                //a.push_back( data[ 1 ].at( i + 1 ) );
+                ja.push_back( jv );
             }
             boost::json::object jobj;
             jobj[ "dg" ] = ja;
