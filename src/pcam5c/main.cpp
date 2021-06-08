@@ -56,7 +56,6 @@ main( int argc, char **argv )
             ( "gpio-number,n", po::value< uint32_t >()->default_value( 960 ), "cam_gpio number" ) // 906+54
             ( "gpio",          po::value< std::string >()->default_value("")->implicit_value("read")
               , "gpio set value [0|1]" )
-            ( "dg",            "list delay pulse data" )
             ;
         po::positional_options_description p;
         p.add( "args",  -1 );

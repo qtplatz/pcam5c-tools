@@ -3,7 +3,7 @@ project( dgmod )
 set ( MODNAME dgmod )
 
 set ( OBJM ${MODNAME}.o )
-set ( SRCS ${MODNAME}.c ${MODNAME}.h dgfsm.h dgmod_delay_pulse.h dgmod_ioctl.h hps.h )
+set ( SRCS ${MODNAME}.c ${MODNAME}.h )
 set ( PACKAGE_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK} )
 
 if ( 0 )
