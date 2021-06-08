@@ -109,6 +109,13 @@ main( int argc, char **argv )
         auto vec = vm[ "set" ].as< std::vector< uint32_t > >();
         for ( const auto& v: vec )
             std::cout << v << std::endl;
+        if ( vec.size() >= 2 && vec[ 0 ] < 8 ) {
+            size_t i = vec[ 0 ];
+            uint32_t value = vec[ 12 ];
+            std::ofstream out( vm[ "device" ].as< std::string >(), std::ios::binary | std::ios::out );
+            out.seekp( i * 4 );
+            out.write( reinterpret_cast< const char * >( &value ), sizeof( uint32_t ) );
+        }
     }
 
     if ( vm.count( "commit" ) ) {
