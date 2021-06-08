@@ -25,6 +25,7 @@
 #include "pretty_print.hpp"
 #include <boost/program_options.hpp>
 #include <boost/json.hpp>
+#include <boost/format.hpp>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -48,48 +49,71 @@ main( int argc, char **argv )
             ( "help,h",        "Display this help message" )
             ( "device,d",      po::value< std::string >()->default_value("/dev/dgmod0"), "dgmod device" )
             ( "list,l",        "list register" )
+            ( "json,j",        "list register as json" )
             ( "commit,c",      "commit" )
+            ( "set",           po::value<std::vector< uint32_t > >()->multitoken(),  "set timings" )
             ;
         po::positional_options_description p;
         p.add( "args",  -1 );
         po::store( po::command_line_parser( argc, argv ).options( description ).positional(p).run(), vm );
         po::notify(vm);
     }
+
     if ( vm.count( "help" ) ) {
         std::cerr << description;
         return 0;
     }
 
-    if ( vm.count( "list" ) ) {
+    std::array< uint32_t, 32 > data[ 2 ];
+    do {
         std::ifstream in( vm[ "device" ].as< std::string >(), std::ios::binary | std::ios::in );
-        if ( in ) {
-            std::array< uint32_t, 32 > data[ 2 ];
-            in.read( reinterpret_cast< char * >( data[ 0 ].data() ), data[0].size() * sizeof( uint32_t ) );
-            in.read( reinterpret_cast< char * >( data[ 1 ].data() ), data[1].size() * sizeof( uint32_t ) );
+        in.read( reinterpret_cast< char * >( data[ 0 ].data() ), data[0].size() * sizeof( uint32_t ) );
+        in.read( reinterpret_cast< char * >( data[ 1 ].data() ), data[1].size() * sizeof( uint32_t ) );
+    } while ( 0 );
 
-            boost::json::array ja;
-
-            boost::json::value jv = {
-                { { "flags", data[0].at ( 0 ) }, { "flags_act", data[1].at ( 0 ) } }
-                , { { "flags", data[0].at ( 0 ) }, { "flags_act", data[1].at ( 0 ) } }
-            };
-            ja.push_back( jv );
-            for ( size_t i = 1; i < data[ 0 ].size(); i += 2 ) {
-                boost::json::value jv = {
-                    { { "delay_s", data[ 0 ].at( i ) }, { "width_s", data[ 0 ].at( i + 1 ) } }
-                    , { { "delay_a", data[ 1 ].at( i ) }, { "width_s", data[ 1 ].at( i + 1 ) } }
-                };
-                //a.push_back( data[ 0 ].at( i ) );
-                //a.push_back( data[ 0 ].at( i + 1 ) );
-                //a.push_back( data[ 1 ].at( i ) );
-                //a.push_back( data[ 1 ].at( i + 1 ) );
-                ja.push_back( jv );
-            }
-            boost::json::object jobj;
-            jobj[ "dg" ] = ja;
-            pretty_print( std::cout, jobj );
+    if ( vm.count( "list" ) || argc == 1 ) {
+        for ( size_t i = 0; i < data[ 0 ].size(); i += 2 ) {
+            std::cout <<
+                boost::format( "%d\t0x%08x\t0x%08x\t|\t0x%08x\t%08x" )
+                % i
+                % data[ 0 ].at( i )
+                % data[ 0 ].at( i + 1 )
+                % data[ 1 ].at( i )
+                % data[ 1 ].at( i + 1 )
+                      << std::endl;
         }
     }
 
+    if ( vm.count( "json" ) ) {
+        boost::json::array ja;
+        boost::json::value jv = {
+            { { "flags", data[0].at( 0 ) }, { "t0_set", data[0].at( 1 ) } }
+                , { { "flags", data[1].at( 0 ) }, { "t0", data[1].at ( 1 ) } }
+        };
+        // std::cout << boost::json::serialize( jv ) << std::endl;
+        ja.push_back( jv );
+        for ( size_t i = 1; i < data[ 0 ].size(); i += 2 ) {
+            boost::json::value jv = {
+                { { "delay_s", data[ 0 ].at( i ) }, { "width_s", data[ 0 ].at( i + 1 ) } }
+                , { { "delay", data[ 1 ].at( i ) }, { "width", data[ 1 ].at( i + 1 ) } }
+            };
+            ja.push_back( jv );
+        }
+        //boost::json::object jobj;
+        //jobj[ "dgmod" ] = ja;
+        //std::cout << boost::json::serialize( jobj ) << std::endl;
+        std::cout << boost::json::serialize( ja ) << std::endl;
+    }
+
+    if ( vm.count( "set" ) ) {
+        auto vec = vm[ "set" ].as< std::vector< uint32_t > >();
+        for ( const auto& v: vec )
+            std::cout << v << std::endl;
+    }
+
+    if ( vm.count( "commit" ) ) {
+        std::ofstream out( vm[ "device" ].as< std::string >(), std::ios::binary | std::ios::out );
+        out.write( reinterpret_cast< const char * >( data[ 0 ].at( 0 ) ), sizeof( uint32_t ) );
+    }
     return 0;
 }
