@@ -188,8 +188,10 @@ csi2rx_proc_read( struct seq_file * m, void * v )
                     , "csi2rx mem resource: %x -- %x, map to %p\n"
                     , __pdev->resource->start, __pdev->resource->end, drv->iomem );
         for ( size_t i = 0; i < countof( __core_register ); ++i ) {
-            seq_printf( m, "0x04x:\t%08x\t%s\n"
-                        , xcsi2rxss_read( drv, __core_register[ i ].offset ), __core_register[ i ].name );
+            seq_printf( m, "0x%04x\t%08x\t%s\n"
+                        , __core_register[ i ].offset
+                        , xcsi2rxss_read( drv, __core_register[ i ].offset )
+                        , __core_register[ i ].name );
         }
 
     }
