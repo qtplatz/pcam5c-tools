@@ -23,26 +23,27 @@
 
 #include "csi2rx.h"
 #include <linux/cdev.h>
+#include <linux/clk.h>
 #include <linux/ctype.h>
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/gpio.h>
-#include <linux/of_gpio.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/ioctl.h>
 #include <linux/irq.h>
 #include <linux/kernel.h>
-#include <linux/module.h>
+#include <linux/ktime.h>
 #include <linux/mm.h>
+#include <linux/module.h>
+#include <linux/of_gpio.h>
+#include <linux/platform_device.h>
 #include <linux/proc_fs.h> // create_proc_entry
 #include <linux/seq_file.h>
+#include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
-#include <linux/slab.h>
-#include <linux/platform_device.h>
-#include <linux/ktime.h>
 
 static char *devname = MODNAME;
 
@@ -54,6 +55,41 @@ module_param( devname, charp, S_IRUGO );
 
 #define countof(x) (sizeof(x)/sizeof((x)[0]))
 
+/*
+ * Sink pad connected to sensor source pad.
+ * Source pad connected to next module like demosaic.
+ */
+#define XCSI_MEDIA_PADS		2
+#define XCSI_DEFAULT_WIDTH	1920
+#define XCSI_DEFAULT_HEIGHT	1080
+
+/* MIPI CSI-2 Data Types from spec */
+#define XCSI_DT_YUV4208B	0x18
+#define XCSI_DT_YUV4228B	0x1e
+#define XCSI_DT_YUV42210B	0x1f
+#define XCSI_DT_RGB444		0x20
+#define XCSI_DT_RGB555		0x21
+#define XCSI_DT_RGB565		0x22
+#define XCSI_DT_RGB666		0x23
+#define XCSI_DT_RGB888		0x24
+#define XCSI_DT_RAW6		0x28
+#define XCSI_DT_RAW7		0x29
+#define XCSI_DT_RAW8		0x2a
+#define XCSI_DT_RAW10		0x2b
+#define XCSI_DT_RAW12		0x2c
+#define XCSI_DT_RAW14		0x2d
+#define XCSI_DT_RAW16		0x2e
+#define XCSI_DT_RAW20		0x2f
+
+#define XCSI_VCX_START		4
+#define XCSI_MAX_VC		4
+#define XCSI_MAX_VCX		16
+
+#define XCSI_NEXTREG_OFFSET	4
+
+/* There are 2 events frame sync and frame level error per VC */
+#define XCSI_VCX_NUM_EVENTS	((XCSI_MAX_VCX - XCSI_MAX_VC) * 2)
+
 static int __debug_level__ = 0;
 static struct platform_driver __platform_driver;
 static dev_t csi2rx_dev_t = 0;
@@ -61,20 +97,58 @@ static struct cdev * __csi2rx_cdev;
 static struct class * __csi2rx_class;
 static struct platform_device *__pdev;
 
-struct csi2rx_driver {
+struct xcsi2rxss_state {
     uint32_t irq;
     uint64_t irqCount_;
-    void __iomem * regs;
-    wait_queue_head_t queue;
-    int queue_condition;
     struct semaphore sem;
-    struct resource * mem_resource;
+    wait_queue_head_t queue;
+	struct gpio_desc *rst_gpio;
+	struct clk_bulk_data *clks;
+	void __iomem *iomem;
+	u32 max_num_lanes;
+	u32 datatype;
+	struct mutex lock;
+	// struct media_pad pads[XCSI_MEDIA_PADS];
+	bool streaming;
+	bool enable_active_lanes;
+	bool en_vcx;
+};
+
+static const struct clk_bulk_data xcsi2rxss_clks[] = {
+	{ .id = "lite_aclk" },
+	{ .id = "video_aclk" },
 };
 
 typedef struct csi2rx_cdev_private {
     u32 node;
     u32 size;
 } csi2rx_cdev_private;
+
+/*
+ * Register related operations
+ */
+static inline u32 xcsi2rxss_read(struct xcsi2rxss_state *xcsi2rxss, u32 addr)
+{
+	return ioread32(xcsi2rxss->iomem + addr);
+}
+
+static inline void xcsi2rxss_write(struct xcsi2rxss_state *xcsi2rxss, u32 addr,
+				   u32 value)
+{
+	iowrite32(value, xcsi2rxss->iomem + addr);
+}
+
+static inline void xcsi2rxss_clr(struct xcsi2rxss_state *xcsi2rxss, u32 addr,
+				 u32 clr)
+{
+	xcsi2rxss_write(xcsi2rxss, addr,
+			xcsi2rxss_read(xcsi2rxss, addr) & ~clr);
+}
+
+static inline void xcsi2rxss_set(struct xcsi2rxss_state *xcsi2rxss, u32 addr, u32 set)
+{
+	xcsi2rxss_write(xcsi2rxss, addr, xcsi2rxss_read(xcsi2rxss, addr) | set);
+}
 
 static int
 csi2rx_dev_uevent( struct device * dev, struct kobj_uevent_env * env )
@@ -87,20 +161,11 @@ static int
 csi2rx_proc_read( struct seq_file * m, void * v )
 {
     seq_printf( m, "debug level = %d\n", __debug_level__ );
-    struct csi2rx_driver * drv = platform_get_drvdata( __pdev );
+    struct xcsi2rxss_state * drv = platform_get_drvdata( __pdev );
     if ( drv ) {
         seq_printf( m
                     , "csi2rx mem resource: %x -- %x, map to %p\n"
-                    , drv->mem_resource->start, drv->mem_resource->end, drv->regs );
-        const u32 * p = ( const u32 * )drv->regs;
-        u32 addr = drv->mem_resource->start;
-        for ( u32 i = 0; i < 16; ++i ) {
-            seq_printf( m, "%08x: %08x %08x\t%08x %08x\n", addr, p[0], p[1], p[2], p[3] );
-            addr += 4 * 4;
-            p += 4;
-            if ( i == 7 )
-                seq_printf( m, "\n" );
-        }
+                    , __pdev->resource->start, __pdev->resource->end, drv->iomem );
     }
     return 0;
 }
@@ -173,24 +238,16 @@ static ssize_t csi2rx_cdev_read( struct file * file, char __user* data, size_t s
 {
     dev_info( &__pdev->dev, "csi2rx_cdev_read: fpos=%llx, size=%ud\n", *f_pos, size );
 
-    struct csi2rx_driver * drv = platform_get_drvdata( __pdev );
+    struct xcsi2rxss_state * drv = platform_get_drvdata( __pdev );
     if ( drv ) {
-        if ( down_interruptible( &drv->sem ) ) {
-            dev_info(&__pdev->dev, "%s: down_interruptible for read faild\n", __func__ );
-            return -ERESTARTSYS;
-        }
         csi2rx_cdev_private * private_data = file->private_data;
-
-        //size_t dsize = drv->mem_resource->end - (drv->mem_resource->start + *f_pos);
         size_t dsize = private_data->size - *f_pos;
         if ( dsize > size )
             dsize = size;
-        if ( copy_to_user( data, (const char *)drv->regs + (*f_pos), dsize ) ) {
-            up( &drv->sem );
+        if ( copy_to_user( data, (const char *)drv->iomem + (*f_pos), dsize ) ) {
             return -EFAULT;
         }
         *f_pos += dsize;
-        up( &drv->sem );
         return dsize;
     }
     return 0;
@@ -207,26 +264,6 @@ static ssize_t
 csi2rx_cdev_mmap( struct file * file, struct vm_area_struct * vma )
 {
     int ret = (-1);
-
-    struct csi2rx_driver * drv = platform_get_drvdata( __pdev );
-    if ( drv == 0  ) {
-        printk( KERN_CRIT "%s: Couldn't allocate shared memory for user space\n", __func__ );
-        return -1; // Error
-    }
-
-    // Map the allocated memory into the calling processes address space.
-    u32 size = vma->vm_end - vma->vm_start;
-
-    ret = remap_pfn_range( vma
-                           , vma->vm_start
-                           , drv->mem_resource->start
-                           , size
-                           , vma->vm_page_prot );
-    if (ret < 0) {
-        printk(KERN_CRIT "%s: remap of shared memory failed, %d\n", __func__, ret);
-        return ret;
-    }
-
     return ret;
 }
 
@@ -240,10 +277,10 @@ csi2rx_cdev_llseek( struct file * file, loff_t offset, int orig )
         pos = offset;
         break;
     case 1: // SEEK_CUR
-        pos + offset;
+        pos = file->f_pos + offset;
         break;
     case 2: // SEEK_END
-        pos + offset;
+        pos = file->f_pos + offset;
         break;
     default:
         return -EINVAL;
@@ -332,7 +369,7 @@ csi2rx_module_exit( void )
 static irqreturn_t
 handle_interrupt( int irq, void *dev_id )
 {
-    struct csi2rx_driver * drv = dev_id ? platform_get_drvdata( dev_id ) : 0;
+    struct xcsi2rxss_state * drv = dev_id ? platform_get_drvdata( dev_id ) : 0;
     (void)drv;
     dev_info( &__pdev->dev, "csi2rx handle_interrupt\n" );
     return IRQ_HANDLED;
@@ -342,27 +379,32 @@ static int
 csi2rx_module_probe( struct platform_device * pdev )
 {
     int irq = 0;
-    struct csi2rx_driver * drv = devm_kzalloc( &pdev->dev, sizeof( struct csi2rx_driver ), GFP_KERNEL );
+    struct xcsi2rxss_state * drv = devm_kzalloc( &pdev->dev, sizeof( struct xcsi2rxss_state ), GFP_KERNEL );
     if ( ! drv )
         return -ENOMEM;
 
     __pdev = pdev;
+    dev_info( &pdev->dev, "csi2rx_module proved" );
 
-    dev_info( &pdev->dev, "csi2rx_module proved [%s]", pdev->name );
-
-    for ( int i = 0; i < pdev->num_resources; ++i ) {
-        struct resource * res = platform_get_resource( pdev, IORESOURCE_MEM, i );
-        if ( res ) {
-            void __iomem * regs = devm_ioremap_resource( &pdev->dev, res );
-            if ( regs ) {
-                drv->regs = regs;
-                drv->mem_resource = res;
-            }
-            dev_info( &pdev->dev, "csi2rx probe resource[%d]: %x -- %x, map to %p\n"
-                      , i, res->start, res->end, regs );
-        }
-        sema_init( &drv->sem, 1 );
+	drv->rst_gpio = devm_gpiod_get_optional(&pdev->dev, "video-reset", GPIOD_OUT_HIGH);
+	if ( IS_ERR( drv->rst_gpio ) ) {
+		if ( PTR_ERR( drv->rst_gpio ) != -EPROBE_DEFER )
+			dev_err(&pdev->dev, "Video Reset GPIO not setup in DT");
+		return PTR_ERR( drv->rst_gpio );
+	}
+	/* ret = xcsi2rxss_parse_of(xcsi2rxss); */
+	/* if (ret < 0) */
+	/* 	return ret; */
+	drv->iomem = devm_platform_ioremap_resource(pdev, 0);
+	if ( IS_ERR( drv->iomem ) ) {
+        dev_err(&pdev->dev, "iomem get failed");
+		return PTR_ERR(drv->iomem);
     }
+    dev_info( &pdev->dev, "csi2rx probe resource: %x -- %x, map to %p\n"
+              , pdev->resource->start, pdev->resource->end, drv->iomem );
+
+    sema_init( &drv->sem, 1 );
+
     platform_set_drvdata( pdev, drv );
 
     if ( ( irq = platform_get_irq( pdev, 0 ) ) > 0 ) {
