@@ -124,6 +124,27 @@ typedef struct csi2rx_cdev_private {
     u32 size;
 } csi2rx_cdev_private;
 
+struct core_register {
+    u32 offset;
+    const char * name;
+};
+const struct core_register __core_register [] = {
+    { 0x00, "Core Configuration Register" }
+    , { 0x04, "Protocol Configuration Register" }
+    , { 0x10, "Core Status Register" }
+    , { 0x20, "Global Interrupt Enable Register" }
+    , { 0x24, "Interrupt Status Register" }
+    , { 0x28, "Interrupt Enable Register" }
+    , { 0x30, "Generic Short Packet Register" }
+    , { 0x34, "VCX Frame Error Register" }
+    , { 0x3c, "Clock Lane Information Register" }
+    , { 0x40, "Lane0 Information" }
+    , { 0x44, "Lane1 Information" }
+    , { 0x48, "Lane2 Information" }
+    , { 0x4c, "Lane3 Information" }
+    // 0x60 -- 0xdc
+};
+
 /*
  * Register related operations
  */
@@ -166,6 +187,11 @@ csi2rx_proc_read( struct seq_file * m, void * v )
         seq_printf( m
                     , "csi2rx mem resource: %x -- %x, map to %p\n"
                     , __pdev->resource->start, __pdev->resource->end, drv->iomem );
+        for ( size_t i = 0; i < countof( __core_register ); ++i ) {
+            seq_printf( m, "0x04x:\t%08x\t%s\n"
+                        , xcsi2rxss_read( drv, __core_register[ i ].offset ), __core_register[ i ].name );
+        }
+
     }
     return 0;
 }
