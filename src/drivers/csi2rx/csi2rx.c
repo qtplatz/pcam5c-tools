@@ -412,7 +412,7 @@ csi2rx_module_probe( struct platform_device * pdev )
         return -ENOMEM;
 
     __pdev = pdev;
-    dev_info( &pdev->dev, "csi2rx_module proved" );
+    dev_info( &pdev->dev, "csi2rx_module probed" );
 
 	drv->rst_gpio = devm_gpiod_get_optional(&pdev->dev, "video-reset", GPIOD_OUT_HIGH);
 	if ( IS_ERR( drv->rst_gpio ) ) {
