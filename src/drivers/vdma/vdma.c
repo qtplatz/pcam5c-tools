@@ -84,28 +84,67 @@ enum { dg_data_irq_mask = 2 };
 
 static int __debug_level__ = 0;
 
+struct register_bitfield {
+    u32 lsb; u32 mask; const char * name;
+};
+
+struct register_bitfield s2mm_cr [] = {
+    { 24, 0xff, "IRQDC" }
+    , { 16, 0xff, "IRQFC" }
+    , { 15, 0x01, "Rep" }
+    //, { 14, 0x01, "ER_Irq" }
+    //, { 13, 0x01, "DC_Irq" }
+    //, { 12, 0x01, "FC_Irq" }
+    //, { 8, 0x0f, "WrPntrNmbr" }
+    //, { 7, 0x01, "GLsrc" }
+    //, { 4, 0x01, "FCen" }
+    //, { 3, 0x01, "GLen" }
+    //, { 2, 0x01, "Res" }
+    , { 1, 0x01, "C_Park" }
+    , { 0, 0x01, "Run/Stop" }
+    , { 0, 0, 0 }
+};
+struct register_bitfield s2mm_sr [] = {
+    { 24, 0xff, "IRQDC" }
+    , { 16, 0xff, "IRQFC" }
+    , { 15, 0x01, "EOLEr" }
+    //, { 14, 0x01, "ER_Irq" }
+    //, { 13, 0x01, "DC_Irq" }
+    //, { 12, 0x01, "FC_Irq" }
+    //, { 8, 0x0f, "WrPntrNmbr" }
+    //, { 7, 0x01, "GLsrc" }
+    //, { 4, 0x01, "FCen" }
+    //, { 3, 0x01, "GLen" }
+    //, { 2, 0x01, "Res" }
+    , { 4, 0x01, "IntErr" }
+    , { 0, 0x01, "Halted" }
+    , { 0, 0, 0 }
+};
+
 struct core_register {
     u32 offset;
     const char * name;
     u32 replicates;
+    struct register_bitfield * fields;
 };
+
 const struct core_register __core_register [] = {
-    { 0x00, "MM2S VDMA Control Register", 1 }
-    , { 0x04, "MM2S VDMA Status Register", 1 }
-    , { 0x14, "MM2S Register Index", 1 }
-    , { 0x28, "MM2S and S1MM Park Pointer Register", 1 }
+    { 0x00, "MM2S VDMA CR", 1, 0 }
+    , { 0x04, "MM2S VDMA SR", 1, 0 }
+    , { 0x14, "MM2S Register Index", 1, 0 }
+    , { 0x28, "MM2S and S1MM Park Pointer Register", 1, 0 }
     // , { 0x2c, "Video DMA Version register", 1 }
-    , { 0x30, "S2MM VDMA Control Register", 1 }
-    , { 0x34, "S2MM VDMA Status Register", 1 }
-    , { 0x3c, "S2MM_VDMA_IRQ_MASK", 1 }
-    , { 0x44, "S2MM Register Index", 1 }
-    , { 0x50, "MM2S_VSIZE MM2S Vertical Size Register", 1 }
-    , { 0x54, "MM2S_HSIZE MM2S Horizontal Size Register", 1 }
-    , { 0x58, "MM2S_FRMDLY_STRIDE MM2S Frame Delay and Stride Register", 1 }
+    , { 0x30, "S2MM VDMA CR", 1, s2mm_cr }
+    , { 0x34, "S2MM VDMA SR", 1, s2mm_sr }
+    , { 0x3c, "S2MM_VDMA_IRQ_MASK", 1, 0 }
+    , { 0x44, "S2MM Register Index", 1, 0 }
+    , { 0x50, "MM2S_VSIZE MM2S Vertical Size Register", 1, 0 }
+    , { 0x54, "MM2S_HSIZE MM2S Horizontal Size Register", 1, 0 }
+    , { 0x58, "MM2S_FRMDLY_STRIDE MM2S Frame Delay and Stride Register", 1, 0 }
     // , { 0x5c, "MM2S Start Address", 1 }
-    , { 0xa0, "Vertical Size Register", 1 }
-    , { 0xa4, "Horizontal Size Register", 1 }
-    , { 0xa8, "Frame Delay and Stride Register", 1 }
+    , { 0xa0, "Vertical Size Register", 1, 0 }
+    , { 0xa4, "Horizontal Size Register", 1, 0 }
+    , { 0xa8, "Frame Delay and Stride Register", 1, 0 }
     // , { 0xac, "S2MM Start Address", 16 }
 };
 
@@ -125,6 +164,7 @@ handle_interrupt( int irq, void *dev_id )
 {
     struct vdma_driver * driver = dev_id ? platform_get_drvdata( dev_id ) : 0;
     (void)(driver);
+    dev_info( &__pdev->dev, "handle_interrupt\n" );
     return IRQ_HANDLED;
 }
 
@@ -144,12 +184,15 @@ vdma_proc_read( struct seq_file * m, void * v )
                     , (version & 0xffff) );
 
         for ( size_t i = 0; i < countof( __core_register ); ++i ) {
-            for ( size_t k = 0; k < __core_register[ i ].replicates; ++k ) {
-                u32 offset = __core_register[ i ].offset + ( k * sizeof( u32 ) );
-                seq_printf( m, "0x%04x\t%08x\t%s"
-                            , offset, vdma_reg_read( drv, offset ), __core_register[ i ].name );
-            }
-            if ( __core_register[ i ].offset == 0x30 ) { // S2MM VDMACR
+            u32 offset = __core_register[ i ].offset;
+            u32 r = vdma_reg_read( drv, offset );
+            seq_printf( m, "0x%04x\t%04x'%04x\t%s\t", offset, r >> 16, r & 0xffff, __core_register[ i ].name );
+            if ( __core_register[ i ].fields ) {
+                struct register_bitfield * fields = __core_register[ i ].fields;
+                while ( fields->mask != 0 ) {
+                    seq_printf( m, "%s=%x,", fields->name, (r >> fields->lsb)&fields->mask);
+                    ++fields;
+                }
             }
             seq_printf( m, "\n" );
         }
