@@ -23,7 +23,6 @@
 **************************************************************************/
 
 #include "vdma.h"
-// #include "dma_ingress.h"
 #include <linux/cdev.h>
 #include <linux/ctype.h>
 #include <linux/delay.h>
@@ -59,10 +58,6 @@ module_param( devname, charp, S_IRUGO );
 static struct platform_driver __vdma_platform_driver;
 struct platform_device * __pdev;
 
-enum dma { dmalen = 16*sizeof(u32) }; // 512bits
-
-enum direction { dma_r = 0 /*dma_w = 1 */};
-
 enum dma_ingress_egress {
     dma_size      = 0x00100000*5
 };
@@ -71,9 +66,6 @@ struct vdma_driver {
     uint32_t irq[ 4 ];
     uint64_t irqCount;
     void __iomem * iomem;
-    uint32_t * dma_ptr;
-    uint32_t phys_source_address;
-    uint32_t phys_destination_address;
     wait_queue_head_t queue;
     int queue_condition;
     struct semaphore sem;
@@ -102,7 +94,7 @@ const struct core_register __core_register [] = {
     , { 0x04, "MM2S VDMA Status Register", 1 }
     , { 0x14, "MM2S Register Index", 1 }
     , { 0x28, "MM2S and S1MM Park Pointer Register", 1 }
-    , { 0x2c, "Video DMA Version register", 1 }
+    // , { 0x2c, "Video DMA Version register", 1 }
     , { 0x30, "S2MM VDMA Control Register", 1 }
     , { 0x34, "S2MM VDMA Status Register", 1 }
     , { 0x3c, "S2MM_VDMA_IRQ_MASK", 1 }
@@ -110,11 +102,11 @@ const struct core_register __core_register [] = {
     , { 0x50, "MM2S_VSIZE MM2S Vertical Size Register", 1 }
     , { 0x54, "MM2S_HSIZE MM2S Horizontal Size Register", 1 }
     , { 0x58, "MM2S_FRMDLY_STRIDE MM2S Frame Delay and Stride Register", 1 }
-    , { 0x5c, "MM2S Start Address", 16 }
+    // , { 0x5c, "MM2S Start Address", 1 }
     , { 0xa0, "Vertical Size Register", 1 }
     , { 0xa4, "Horizontal Size Register", 1 }
     , { 0xa8, "Frame Delay and Stride Register", 1 }
-    , { 0xac, "S2MM Start Address", 16 }
+    // , { 0xac, "S2MM Start Address", 16 }
 };
 
 static inline u32 vdma_reg_read(struct vdma_driver * drv, u32 addr)
@@ -122,6 +114,10 @@ static inline u32 vdma_reg_read(struct vdma_driver * drv, u32 addr)
 	return ioread32(drv->iomem + addr);
 }
 
+static inline void vdma_reg_write(struct vdma_driver * drv, u32 addr, u32 value)
+{
+	iowrite32(value, drv->iomem + addr);
+}
 
 
 static irqreturn_t
@@ -138,20 +134,39 @@ vdma_proc_read( struct seq_file * m, void * v )
     seq_printf( m, "vdma debug level = %d\n", __debug_level__ );
     struct vdma_driver * drv = platform_get_drvdata( __pdev );
     if ( drv ) {
-        seq_printf( m
-                    , "csi2rx mem resource: %x -- %x, map to %p\n"
+        seq_printf( m, "vdma mem resource: %x -- %x, map to %p\n"
                     , __pdev->resource->start, __pdev->resource->end, drv->iomem );
+        u32 version = vdma_reg_read( drv, 0x2c );
+        seq_printf( m, "VDMA Version: %d.%02x.%d-%d\n"
+                    , version >> 28
+                    , (version >> 20) & 0xff
+                    , (version >> 16) & 0x0f
+                    , (version & 0xffff) );
+
         for ( size_t i = 0; i < countof( __core_register ); ++i ) {
             for ( size_t k = 0; k < __core_register[ i ].replicates; ++k ) {
                 u32 offset = __core_register[ i ].offset + ( k * sizeof( u32 ) );
-                if ( __core_register[ i ].replicates == 1 ) {
-                    seq_printf( m, "0x%04x\t%08x\t%s\n"
-                                , offset, vdma_reg_read( drv, offset ), __core_register[ i ].name );
-                } else {
-                    seq_printf( m, "0x%04x\t%08x\t%s [%d]\n"
-                                , offset, vdma_reg_read( drv, offset ), __core_register[ i ].name, k );
-                }
+                seq_printf( m, "0x%04x\t%08x\t%s"
+                            , offset, vdma_reg_read( drv, offset ), __core_register[ i ].name );
             }
+            if ( __core_register[ i ].offset == 0x30 ) { // S2MM VDMACR
+            }
+            seq_printf( m, "\n" );
+        }
+        seq_printf( m, "MM2S VDMA Start Address\n" );
+        for ( size_t idx = 0; idx < 2; ++idx ) {
+            vdma_reg_write( drv, 0x44, idx ); // S2MM Index -> 0
+            for ( size_t k = 0; k < 16; ++k ) {
+                seq_printf( m, "[%02x] 0x%08x\t", (idx<<4)|k, vdma_reg_read( drv, 0xac + (k * sizeof( u32 )) ) );
+                if ( (k + 1) % 8 == 0 )
+                    seq_printf( m, "\n" );
+            }
+        }
+        seq_printf( m, "\nDMA pages\n" );
+        for ( size_t i = 0; i < countof( drv->dma_vaddr ) && drv->dma_vaddr[ i ]; ++i ) {
+            seq_printf( m, "[%02d] 0x%08x\t", i, drv->dma_handle[ i ] );
+            if ( ( i + 1 ) % 8 == 0 )
+                seq_printf( m, "\n" );
         }
     }
     return 0;
@@ -331,12 +346,19 @@ vdma_module_probe( struct platform_device * pdev )
 
     for ( u32 i = 0; i < countof( drv->dma_vaddr ); ++i ) {
         if (( drv->dma_vaddr[ i ] = dma_alloc_coherent( &pdev->dev, dma_size, &drv->dma_handle[ i ], GFP_KERNEL ) )) {
-            dev_info( &pdev->dev, "vdma dma alloc_coherent %p\t%x\n", drv->dma_vaddr[ i ], drv->dma_handle[ i ] );
+            // dev_info( &pdev->dev, "vdma dma alloc_coherent %p\t%x\n", drv->dma_vaddr[ i ], drv->dma_handle[ i ] );
             u32 * p = drv->dma_vaddr[ i ];
             for ( int k = 0; k < (dma_size/sizeof(u32)); ++k )
                 *p++ = 0xcafe0000 | k;
+            if ( i < 16 ) {
+                vdma_reg_write( drv, 0x44, 0 );
+                vdma_reg_write( drv, 0xac + (i * sizeof(u32)), drv->dma_handle[ i ] );
+            } else {
+                vdma_reg_write( drv, 0x44, 1 );
+                vdma_reg_write( drv, 0xac + ((i-16) * sizeof(u32)), drv->dma_handle[ i ] );
+            }
         } else {
-            dev_info( &pdev->dev, "failed vdma dma alloc_coherent %p\n", drv->dma_vaddr );
+            dev_err( &pdev->dev, "failed vdma dma alloc_coherent %p\n", drv->dma_vaddr );
             break;
         }
     }
@@ -366,7 +388,7 @@ vdma_module_remove( struct platform_device * pdev )
     }
     for ( u32 i = 0; i < countof( drv->dma_vaddr ) && drv->dma_vaddr[ i ]; ++i ) {
         dma_free_coherent( &pdev->dev, dma_size, drv->dma_vaddr[ i ], drv->dma_handle[ i ] );
-        dev_info( &pdev->dev, "dma addr %x about to be freed\n", drv->dma_handle[ i ] );
+        // dev_info( &pdev->dev, "dma addr %x about to be freed\n", drv->dma_handle[ i ] );
     }
     dev_info( &pdev->dev, "Unregistered.\n" );
 
