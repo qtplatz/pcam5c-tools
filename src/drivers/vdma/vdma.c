@@ -63,7 +63,7 @@ enum dma_ingress_egress {
 };
 
 struct vdma_driver {
-    uint32_t irq[ 4 ];
+    uint32_t irq[ 2 ];
     uint64_t irqCount;
     void __iomem * iomem;
     wait_queue_head_t queue;
@@ -148,16 +148,57 @@ const struct core_register __core_register [] = {
     // , { 0xac, "S2MM Start Address", 16 }
 };
 
-static inline u32 vdma_reg_read(struct vdma_driver * drv, u32 addr)
+static inline u32 vdma_read32(struct vdma_driver * drv, u32 addr)
 {
 	return ioread32(drv->iomem + addr);
 }
 
-static inline void vdma_reg_write(struct vdma_driver * drv, u32 addr, u32 value)
+static inline void vdma_write32(struct vdma_driver * drv, u32 addr, u32 value)
 {
 	iowrite32(value, drv->iomem + addr);
 }
 
+static void vdma_reset( struct vdma_driver * drv )
+{
+    ((u32*)drv->iomem)[ 0 ] = 0x04;
+    ((u32*)drv->iomem)[ 0x30 / sizeof(u32) ] = 0x04;
+}
+
+static bool vdma_reset_busy( struct vdma_driver * drv )
+{
+    return ( ( ((u32*)drv->iomem)[ 0x00 / sizeof(u32) ] & 0x04 ) == 0x04 ) |
+        ( ( ((u32*)drv->iomem)[ 0x30 / sizeof(u32) ] & 0x04 ) == 0x04 );
+}
+
+static void vdma_start_triple_buffering( struct vdma_driver * drv )
+{
+    vdma_reset( drv );
+    while ( vdma_reset_busy( drv ) )
+        ;
+    ((u32*)drv->iomem)[ 0x04 / sizeof(u32) ] = 0; // clear SR
+    ((u32*)drv->iomem)[ 0x34 / sizeof(u32) ] = 0; // clear SR
+    ((u32*)drv->iomem)[ 0x3c / sizeof(u32) ] = 0x0f; // do not mask interrupts
+
+    int interrupt_frame_count = 3;
+    u32* mm2scr = (u32*)drv->iomem + (0x00/sizeof(u32));
+    u32* s2mmcr = (u32*)drv->iomem + (0x3c/sizeof(u32));
+
+    *s2mmcr =
+        (interrupt_frame_count << 16) |
+        0x0001 | // VDMA_CONTROL_REGISTER_START |
+        0x0008 | // VDMA_CONTROL_REGISTER_GENLOCK_ENABLE |
+        0x0080 | // VDMA_CONTROL_REGISTER_INTERNAL_GENLOCK |
+        0x0002 // VDMA_CONTROL_REGISTER_CIRCULAR_PARK);
+        ;
+
+    *mm2scr =
+        (interrupt_frame_count << 16) |
+        0x0001 | // VDMA_CONTROL_REGISTER_START |
+        0x0008 | // VDMA_CONTROL_REGISTER_GENLOCK_ENABLE |
+        0x0080 | // VDMA_CONTROL_REGISTER_INTERNAL_GENLOCK |
+        0x0002 // VDMA_CONTROL_REGISTER_CIRCULAR_PARK);
+        ;
+}
 
 static irqreturn_t
 handle_interrupt( int irq, void *dev_id )
@@ -176,7 +217,7 @@ vdma_proc_read( struct seq_file * m, void * v )
     if ( drv ) {
         seq_printf( m, "vdma mem resource: %x -- %x, map to %p\n"
                     , __pdev->resource->start, __pdev->resource->end, drv->iomem );
-        u32 version = vdma_reg_read( drv, 0x2c );
+        u32 version = vdma_read32( drv, 0x2c );
         seq_printf( m, "VDMA Version: %d.%02x.%d-%d\n"
                     , version >> 28
                     , (version >> 20) & 0xff
@@ -185,7 +226,7 @@ vdma_proc_read( struct seq_file * m, void * v )
 
         for ( size_t i = 0; i < countof( __core_register ); ++i ) {
             u32 offset = __core_register[ i ].offset;
-            u32 r = vdma_reg_read( drv, offset );
+            u32 r = vdma_read32( drv, offset );
             seq_printf( m, "0x%04x\t%04x'%04x\t%s\t", offset, r >> 16, r & 0xffff, __core_register[ i ].name );
             if ( __core_register[ i ].fields ) {
                 struct register_bitfield * fields = __core_register[ i ].fields;
@@ -198,9 +239,9 @@ vdma_proc_read( struct seq_file * m, void * v )
         }
         seq_printf( m, "MM2S VDMA Start Address\n" );
         for ( size_t idx = 0; idx < 2; ++idx ) {
-            vdma_reg_write( drv, 0x44, idx ); // S2MM Index -> 0
+            vdma_write32( drv, 0x44, idx ); // S2MM Index -> 0
             for ( size_t k = 0; k < 16; ++k ) {
-                seq_printf( m, "[%02x] 0x%08x\t", (idx<<4)|k, vdma_reg_read( drv, 0xac + (k * sizeof( u32 )) ) );
+                seq_printf( m, "[%02x] 0x%08x\t", (idx<<4)|k, vdma_read32( drv, 0xac + (k * sizeof( u32 )) ) );
                 if ( (k + 1) % 8 == 0 )
                     seq_printf( m, "\n" );
             }
@@ -218,6 +259,31 @@ vdma_proc_read( struct seq_file * m, void * v )
 static ssize_t
 vdma_proc_write( struct file * filep, const char * user, size_t size, loff_t * f_off )
 {
+    static char readbuf[256];
+    size = ( size >= sizeof( readbuf )) ? (sizeof( readbuf ) - 1) : size;
+    struct vdma_driver * drv = platform_get_drvdata( __pdev );
+    if ( copy_from_user( readbuf, user, size ) || drv == 0 )
+        return -EFAULT;
+
+    readbuf[ size ] = '\0';
+
+    if ( strcmp( readbuf, "halt" ) == 0 ) {
+        vdma_reset( drv );
+    } else if ( strcmp( readbuf, "go" ) == 0 ) {
+        vdma_start_triple_buffering( drv );
+    } else if ( strncmp( readbuf, "vsize", 5 ) == 0 ) {
+        unsigned long vsize;
+        if ( kstrtoul( &readbuf[5], 0, &vsize ) == 0 ) {
+            dev_info( &__pdev->dev, "vsize=%lu\n", vsize );
+            // todo: set value to hardware
+        }
+    } else if ( strncmp( readbuf, "hsize", 5 ) == 0 ) {
+        unsigned long hsize;
+        if ( kstrtoul( &readbuf[5], 0, &hsize ) == 0 ) {
+            dev_info( &__pdev->dev, "hsize=%lu\n", hsize );
+            // todo: set value to hardware
+        }
+    }
     return size;
 }
 
@@ -394,11 +460,11 @@ vdma_module_probe( struct platform_device * pdev )
             for ( int k = 0; k < (dma_size/sizeof(u32)); ++k )
                 *p++ = 0xcafe0000 | k;
             if ( i < 16 ) {
-                vdma_reg_write( drv, 0x44, 0 );
-                vdma_reg_write( drv, 0xac + (i * sizeof(u32)), drv->dma_handle[ i ] );
+                vdma_write32( drv, 0x44, 0 );
+                vdma_write32( drv, 0xac + (i * sizeof(u32)), drv->dma_handle[ i ] );
             } else {
-                vdma_reg_write( drv, 0x44, 1 );
-                vdma_reg_write( drv, 0xac + ((i-16) * sizeof(u32)), drv->dma_handle[ i ] );
+                vdma_write32( drv, 0x44, 1 );
+                vdma_write32( drv, 0xac + ((i-16) * sizeof(u32)), drv->dma_handle[ i ] );
             }
         } else {
             dev_err( &pdev->dev, "failed vdma dma alloc_coherent %p\n", drv->dma_vaddr );
