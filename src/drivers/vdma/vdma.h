@@ -28,7 +28,7 @@
 #include <linux/version.h>
 #include <linux/cdev.h>
 
-#define MODNAME     "adc-fifo"
+#define MODNAME     "vdma"
 #define CDEV_NAME   MODNAME
 
 #endif

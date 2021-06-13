@@ -95,6 +95,38 @@ enum { dg_data_irq_mask = 2 };
 
 static int __debug_level__ = 0;
 
+struct core_register {
+    u32 offset;
+    const char * name;
+    u32 replicates;
+};
+const struct core_register __core_register [] = {
+    { 0x00, "MM2S VDMA Control Register", 1 }
+    , { 0x04, "MM2S VDMA Status Register", 1 }
+    , { 0x14, "MM2S Register Index", 1 }
+    , { 0x28, "MM2S and S1MM Park Pointer Register", 1 }
+    , { 0x2c, "Video DMA Version register", 1 }
+    , { 0x30, "S2MM VDMA Control Register", 1 }
+    , { 0x34, "S2MM VDMA Status Register", 1 }
+    , { 0x3c, "S2MM_VDMA_IRQ_MASK", 1 }
+    , { 0x44, "S2MM Register Index", 1 }
+    , { 0x50, "MM2S_VSIZE MM2S Vertical Size Register", 1 }
+    , { 0x54, "MM2S_HSIZE MM2S Horizontal Size Register", 1 }
+    , { 0x58, "MM2S_FRMDLY_STRIDE MM2S Frame Delay and Stride Register", 1 }
+    , { 0x5c, "MM2S Start Address", 16 }
+    , { 0xa0, "Vertical Size Register", 1 }
+    , { 0xa4, "Horizontal Size Register", 1 }
+    , { 0xa8, "Frame Delay and Stride Register", 1 }
+    , { 0xac, "S2MM Start Address", 16 }
+};
+
+static inline u32 vdma_reg_read(struct vdma_driver * drv, u32 addr)
+{
+	return ioread32(drv->iomem + addr);
+}
+
+
+
 static irqreturn_t
 handle_interrupt( int irq, void *dev_id )
 {
@@ -107,6 +139,24 @@ static int
 vdma_proc_read( struct seq_file * m, void * v )
 {
     seq_printf( m, "vdma debug level = %d\n", __debug_level__ );
+    struct vdma_driver * drv = platform_get_drvdata( __pdev );
+    if ( drv ) {
+        seq_printf( m
+                    , "csi2rx mem resource: %x -- %x, map to %p\n"
+                    , __pdev->resource->start, __pdev->resource->end, drv->iomem );
+        for ( size_t i = 0; i < countof( __core_register ); ++i ) {
+            for ( size_t k = 0; k < __core_register[ i ].replicates; ++k ) {
+                u32 offset = __core_register[ i ].offset + ( k * sizeof( u32 ) );
+                if ( __core_register[ i ].replicates == 1 ) {
+                    seq_printf( m, "0x%04x\t%08x\t%s\n"
+                                , offset, vdma_reg_read( drv, offset ), __core_register[ i ].name );
+                } else {
+                    seq_printf( m, "0x%04x\t%08x\t%s [%d]\n"
+                                , offset, vdma_reg_read( drv, offset ), __core_register[ i ].name, k );
+                }
+            }
+        }
+    }
     return 0;
 }
 
