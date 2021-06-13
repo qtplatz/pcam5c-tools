@@ -64,15 +64,11 @@ enum dma { dmalen = 16*sizeof(u32) }; // 512bits
 enum direction { dma_r = 0 /*dma_w = 1 */};
 
 enum dma_ingress_egress {
-    ingress_address     = 0x30000000
-    , ingress_size      = 0x08000000
-    , ingress_stream    = 0x00000000
-    , egress_stream     = 0x00000000
+    dma_size      = 0x00100000*5
 };
 
 struct vdma_driver {
-    uint32_t irq;
-    const char * label;
+    uint32_t irq[ 4 ];
     uint64_t irqCount;
     void __iomem * iomem;
     uint32_t * dma_ptr;
@@ -83,7 +79,8 @@ struct vdma_driver {
     struct semaphore sem;
     uint32_t wp;     // next effective dma phys addr
     uint32_t readp;  // fpga read phys addr
-    struct resource * mem_resource;
+    dma_addr_t dma_handle[ 32 ];
+    uint32_t * dma_vaddr[ 32 ];
 };
 
 struct vdma_cdev_reader {
@@ -330,15 +327,27 @@ vdma_module_probe( struct platform_device * pdev )
     }
     dev_info( &pdev->dev, "vdma probe resource: %x -- %x, map to %p\n"
               , pdev->resource->start, pdev->resource->end, drv->iomem );
-
     sema_init( &drv->sem, 1 );
+
+    for ( u32 i = 0; i < countof( drv->dma_vaddr ); ++i ) {
+        if (( drv->dma_vaddr[ i ] = dma_alloc_coherent( &pdev->dev, dma_size, &drv->dma_handle[ i ], GFP_KERNEL ) )) {
+            dev_info( &pdev->dev, "vdma dma alloc_coherent %p\t%x\n", drv->dma_vaddr[ i ], drv->dma_handle[ i ] );
+            u32 * p = drv->dma_vaddr[ i ];
+            for ( int k = 0; k < (dma_size/sizeof(u32)); ++k )
+                *p++ = 0xcafe0000 | k;
+        } else {
+            dev_info( &pdev->dev, "failed vdma dma alloc_coherent %p\n", drv->dma_vaddr );
+            break;
+        }
+    }
 
     platform_set_drvdata( pdev, drv );
 
-    if ( ( irq = platform_get_irq( pdev, 0 ) ) > 0 ) {
+    int i = 0;
+    while ( ( irq = platform_get_irq( pdev, i++ ) ) > 0 ) {
         dev_info( &pdev->dev, "platform_get_irq: %d", irq );
         if ( devm_request_irq( &pdev->dev, irq, handle_interrupt, 0, MODNAME, pdev ) == 0 ) {
-            drv->irq = irq;
+            drv->irq[ i - 1 ] = irq;
         } else {
             dev_err( &pdev->dev, "Failed to register IRQ.\n" );
             return -ENODEV;
@@ -352,8 +361,12 @@ vdma_module_remove( struct platform_device * pdev )
 {
     struct vdma_driver * drv = platform_get_drvdata( pdev );
 
-    if ( drv && drv->irq > 0 ) {
-        dev_info( &pdev->dev, "IRQ %d about to be freed\n", drv->irq );
+    for ( int i = 0; (i < countof( drv->irq )) && (drv->irq[ i ] > 0); ++i ) {
+        dev_info( &pdev->dev, "IRQ %d about to be freed\n", drv->irq[ i ] );
+    }
+    for ( u32 i = 0; i < countof( drv->dma_vaddr ) && drv->dma_vaddr[ i ]; ++i ) {
+        dma_free_coherent( &pdev->dev, dma_size, drv->dma_vaddr[ i ], drv->dma_handle[ i ] );
+        dev_info( &pdev->dev, "dma addr %x about to be freed\n", drv->dma_handle[ i ] );
     }
     dev_info( &pdev->dev, "Unregistered.\n" );
 
