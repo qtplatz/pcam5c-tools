@@ -62,7 +62,7 @@ static struct cdev * __ov5640_cdev;
 static struct class * __ov5640_class;
 static struct platform_device *__pdev;
 
-struct ov5640_driver {
+struct ov5640_gpio_driver {
     uint32_t irq;
     uint64_t irqCount_;
     struct semaphore sem;
@@ -94,21 +94,42 @@ static int
 ov5640_proc_read( struct seq_file * m, void * v )
 {
     seq_printf( m, "debug level = %d\n", __debug_level__ );
+    struct ov5640_gpio_driver * drv = platform_get_drvdata( __pdev );
+    if ( !drv ) {
+        return 0;
+    }
+    seq_printf( m, "gpio_desc: %p\n", drv->rst_gpio );
+    seq_printf( m, "direction=%d\n", gpiod_get_direction( drv->rst_gpio ) );
+    seq_printf( m, "value=%d\n", gpiod_get_value( drv->rst_gpio ) );
     return 0;
 }
 
 static ssize_t
 ov5640_proc_write( struct file * filep, const char * user, size_t size, loff_t * f_off )
 {
-    static char readbuf[256];
+    char readbuf [256];
 
-    if ( size >= sizeof( readbuf ) )
-        size = sizeof( readbuf ) - 1;
+    struct ov5640_gpio_driver * drv = platform_get_drvdata( __pdev );
+    if ( !drv )
+        return 0;
 
+    size = size > ( sizeof( readbuf ) - 1 ) ? ( sizeof( readbuf ) - 1 ) : size;
     if ( copy_from_user( readbuf, user, size ) )
         return -EFAULT;
 
     readbuf[ size ] = '\0';
+    dev_info( &__pdev->dev, "proc_write = %s\n", readbuf );
+
+    long value = -1;
+    if ( strncmp( readbuf, "down", 4 ) == 0 ) {
+        value = 0;
+    } else if ( strncmp(readbuf, "up", 2 ) == 0 ) {
+        value = 1;
+    } else if ( kstrtol( readbuf, 0, &value ) == 0 ) {
+        ;
+    }
+    if ( value >= 0 )
+        gpiod_set_value( drv->rst_gpio, value );
 
     return size;
 }
@@ -157,20 +178,69 @@ ov5640_cdev_release( struct inode *inode, struct file *file )
 
 static long ov5640_cdev_ioctl( struct file * file, unsigned int code, unsigned long args )
 {
+    dev_info( &__pdev->dev, "%s: code=%x, args=%lu\n", __func__, code, args );
     return 0;
 }
 
 static ssize_t ov5640_cdev_read( struct file * file, char __user* data, size_t size, loff_t* f_pos )
 {
-    dev_info( &__pdev->dev, "ov5640_cdev_read: fpos=%llx, size=%ud\n", *f_pos, size );
-    return size;
+    dev_info( &__pdev->dev, "%s: fpos=%llx, size=%ud\n", __func__, *f_pos, size );
+    struct ov5640_gpio_driver * drv = platform_get_drvdata( __pdev );
+
+    if ( *f_pos >= 1 )
+        return 0;
+
+    size_t dsize = (size < sizeof( u32 ) ) ? size : sizeof( u32 );
+
+    if ( drv ) {
+        if ( down_interruptible( &drv->sem ) ) {
+            dev_err( &__pdev->dev, "%s: down_interruptible for write faild\n", __func__ );
+            return -ERESTARTSYS;
+        }
+        int value = gpiod_get_value( drv->rst_gpio );
+        u8 dvalue[ 4 ] = { 0, 0, 0, 0 };
+        switch( dsize ) {
+        case 1: dvalue[0] = value; break;
+        case 2: dvalue[1] = value; break;
+        case 3: dvalue[2] = value; break;
+        case 4: dvalue[3] = value; break;
+        }
+        if ( copy_to_user( data, &dvalue, dsize ) ) {
+            up( &drv->sem );
+            return -EFAULT;
+        }
+        up( &drv->sem );
+        *f_pos += dsize;
+        return dsize;
+    }
+    return 0;
 }
 
 static ssize_t
 ov5640_cdev_write(struct file *file, const char __user *data, size_t size, loff_t *f_pos)
 {
-    dev_info( &__pdev->dev, "ov5640_cdev_write: fpos=%llx, size=%ud\n", *f_pos, size );
-    return size;
+    dev_info( &__pdev->dev, "%s: fpos=%llx, size=%u\n", __func__, *f_pos, size );
+    struct ov5640_gpio_driver * drv = platform_get_drvdata( __pdev );
+    u8 value[ 4 ] = { 0, 0, 0, 0 };
+    if ( drv && *f_pos < sizeof( value ) ) {
+        if ( down_interruptible( &drv->sem ) ) {
+            dev_err( &__pdev->dev, "%s: down_interruptible for write faild\n", __func__ );
+            return -ERESTARTSYS;
+        }
+        size_t dsize = size < sizeof(value) ? size : sizeof( u32 );
+        if ( copy_from_user( value, data, dsize ) == 0 ) {
+            u32 dvalue = 0;
+            for ( size_t i = 0; i < dsize; ++i ) {
+                dvalue |= value[ i ];
+            }
+            dev_info( &__pdev->dev, "%s: value=%x\n", __func__, dvalue );
+            gpiod_set_value( drv->rst_gpio, dvalue );
+        }
+        up( &drv->sem );
+        *f_pos += dsize;
+        return sizeof( u32 );
+    }
+    return 0;
 }
 
 static ssize_t
@@ -193,12 +263,12 @@ ov5640_cdev_llseek( struct file * file, loff_t offset, int orig )
         pos = file->f_pos + offset;
         break;
     case 2: // SEEK_END
-        pos = file->f_pos + offset;
+        pos = sizeof( u32 ) + offset;
         break;
     default:
         return -EINVAL;
     }
-    if ( pos < 0 )
+    if ( pos < 0 || pos > sizeof( u32 ) )
         return -EINVAL;
     file->f_pos = pos;
     return pos;
@@ -282,7 +352,7 @@ ov5640_module_exit( void )
 static int
 ov5640_module_probe( struct platform_device * pdev )
 {
-    struct ov5640_driver * drv = devm_kzalloc( &pdev->dev, sizeof( struct ov5640_driver ), GFP_KERNEL );
+    struct ov5640_gpio_driver * drv = devm_kzalloc( &pdev->dev, sizeof( struct ov5640_gpio_driver ), GFP_KERNEL );
     if ( ! drv )
         return -ENOMEM;
 
@@ -297,16 +367,28 @@ ov5640_module_probe( struct platform_device * pdev )
 	}
 
     dev_info(&pdev->dev, "Video Reset GPIO:%p", drv->rst_gpio );
-
-    if ( drv->rst_gpio == 0 ) {
-        drv->rst_gpio = devm_gpiod_get_optional(&pdev->dev, "pwdn", GPIOD_OUT_HIGH);
-        if ( IS_ERR( drv->rst_gpio ) ) {
-            if ( PTR_ERR( drv->rst_gpio ) != -EPROBE_DEFER )
-                dev_err(&pdev->dev, "Video Reset GPIO not setup in DT");
-            return PTR_ERR( drv->rst_gpio );
+    if ( drv->rst_gpio ) {
+        int dir = gpiod_get_direction( drv->rst_gpio );
+        switch( dir ) {
+        case 0:  dev_info(&pdev->dev, "\tGPIO direction is output\n" ); break;
+        case 1:  dev_info(&pdev->dev, "\tGPIO direction is input\n" ); break;
+        default: dev_info(&pdev->dev, "\tGPIO get_direction failed with %x\n", dir ); break;
+        }
+        dev_info(&pdev->dev, "\tGPIO value is %d", gpiod_get_value( drv->rst_gpio ) );
+        if ( dir == 1 ) {
+            int ret;
+            if ( ( ret = gpiod_direction_output( drv->rst_gpio, 1 ) ) ) {
+                dev_err(&pdev->dev, "\tGPIO direction output failed with %x\n", gpiod_get_value( drv->rst_gpio ) );
+            }
+        }
+        int irq;
+        if (( irq = gpiod_to_irq( drv->rst_gpio ) ) > 0 ) {
+            dev_info(&pdev->dev, "\tGPIO irq is %d", irq );
+            drv->irq = irq;
+        } else {
+            dev_err(&pdev->dev, "\tGPIO irq get failed %x", irq );
         }
     }
-    dev_info(&pdev->dev, "Video Reset GPIO:%p", drv->rst_gpio );
 
     sema_init( &drv->sem, 1 );
     platform_set_drvdata( pdev, drv );
@@ -318,6 +400,12 @@ static int
 ov5640_module_remove( struct platform_device * pdev )
 {
     __pdev = 0;
+    struct ov5640_gpio_driver * drv = platform_get_drvdata( pdev );
+
+    if ( drv->irq > 0 ) {
+        free_irq( drv->irq, &pdev->dev );
+    }
+
     return 0;
 }
 

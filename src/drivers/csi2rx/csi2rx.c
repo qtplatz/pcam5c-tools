@@ -453,7 +453,7 @@ csi2rx_module_remove( struct platform_device * pdev )
     int irqNumber;
     if ( ( irqNumber = platform_get_irq( pdev, 0 ) ) > 0 ) {
         printk( KERN_INFO "" MODNAME " %s IRQ %d, %x about to be freed\n", pdev->name, irqNumber, pdev->resource->start );
-        free_irq( irqNumber, 0 );
+        free_irq( irqNumber, &pdev->dev );
     }
     __pdev = 0;
     return 0;

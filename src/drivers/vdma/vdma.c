@@ -589,6 +589,7 @@ vdma_module_remove( struct platform_device * pdev )
 
     for ( int i = 0; (i < countof( drv->irq )) && (drv->irq[ i ] > 0); ++i ) {
         dev_info( &pdev->dev, "IRQ %d about to be freed\n", drv->irq[ i ] );
+        free_irq( drv->irq[ i ], &pdev->dev );
     }
     for ( u32 i = 0; i < countof( drv->dma_vaddr ) && drv->dma_vaddr[ i ]; ++i ) {
         dma_free_coherent( &pdev->dev, dma_size, drv->dma_vaddr[ i ], drv->dma_handle[ i ] );
