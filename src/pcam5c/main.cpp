@@ -26,16 +26,19 @@
 #include "i2c.hpp"
 #include "pcam5c.hpp"
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <memory>
-
-#include <boost/program_options.hpp>
+#include <thread>
 #include <boost/endian.hpp>
+#include <boost/format.hpp>
+#include <boost/program_options.hpp>
 
 const static char * i2cdev = "/dev/i2c-0";
 bool __verbose = true;
@@ -56,6 +59,10 @@ main( int argc, char **argv )
             ( "gpio-number,n", po::value< uint32_t >()->default_value( 960 ), "cam_gpio number" ) // 906+54
             ( "gpio",          po::value< std::string >()->default_value("")->implicit_value("read")
               , "gpio set value [0|1]" )
+            ( "halt",          "Halt Pcam 5c (gpio down)" )
+            ( "on",            "PCam 5c power on" )
+            ( "reset",         "PCam 5c power cycle" )
+            ( "status",        "PCam 5c power state" )
             ;
         po::positional_options_description p;
         p.add( "args",  -1 );
@@ -82,6 +89,35 @@ main( int argc, char **argv )
                 std::cout << "gpio" << num << "=" << 0 << std::endl;
         }
         return 0;
+    }
+
+    if ( vm.count( "status" ) ) {
+        auto inf = std::ifstream( "/dev/ov5640-gpio0", std::ios::binary );
+        if ( inf ) {
+            uint8_t value;
+            inf >> value;
+            std::cout << boost::format( "0x%x" ) % int(value) << std::endl;
+        } else {
+            std::cout << "/dev/ov5640-gpio0 open failed."  << std::endl;
+        }
+    }
+
+    if ( vm.count( "halt" ) || vm.count( "reset" ) ) {
+        if ( auto outf = std::ofstream( "/dev/ov5640-gpio0", std::ios::binary ) ) {
+            outf.write( "\000", 1 );
+        }
+        if ( vm.count( "reset" ) ) {
+            using namespace std::chrono_literals;
+            std::this_thread::sleep_for( 1s );
+            if ( auto outf = std::ofstream( "/dev/ov5640-gpio0", std::ios::binary ) ) {
+                outf.write( "\001", 1 );
+            }
+        }
+    }
+    if ( vm.count( "on" ) ) {
+        if ( auto outf = std::ofstream( "/dev/ov5640-gpio0", std::ios::binary ) ) {
+            outf.write( "\001", 1 );
+        }
     }
 
     if ( vm.count( "rreg" ) || vm.count( "all" ) || vm.count( "startup" ) ) {

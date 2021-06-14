@@ -190,7 +190,7 @@ static ssize_t ov5640_cdev_read( struct file * file, char __user* data, size_t s
     if ( *f_pos >= 1 )
         return 0;
 
-    size_t dsize = (size < sizeof( u32 ) ) ? size : sizeof( u32 );
+    size_t dsize = 1;
 
     if ( drv ) {
         if ( down_interruptible( &drv->sem ) ) {
@@ -198,20 +198,17 @@ static ssize_t ov5640_cdev_read( struct file * file, char __user* data, size_t s
             return -ERESTARTSYS;
         }
         int value = gpiod_get_value( drv->rst_gpio );
-        u8 dvalue[ 4 ] = { 0, 0, 0, 0 };
-        switch( dsize ) {
-        case 1: dvalue[0] = value; break;
-        case 2: dvalue[1] = value; break;
-        case 3: dvalue[2] = value; break;
-        case 4: dvalue[3] = value; break;
-        }
-        if ( copy_to_user( data, &dvalue, dsize ) ) {
+        if ( value >= 0 ) {
+            u8 d8 = value;
+            if ( copy_to_user( data, &d8, dsize ) ) {
+                up( &drv->sem );
+                return -EFAULT;
+            }
             up( &drv->sem );
-            return -EFAULT;
+            *f_pos += dsize;
+            return dsize;
         }
-        up( &drv->sem );
-        *f_pos += dsize;
-        return dsize;
+        return -EFAULT;
     }
     return 0;
 }
