@@ -55,31 +55,32 @@ module_param( devname, charp, S_IRUGO );
 
 #define countof(x) (sizeof(x)/sizeof((x)[0]))
 
-#define OFFSET_PARK_PTR_REG                     0x28
-#define OFFSET_VERSION                          0x2c
+enum VDMA_OFFSET {
+    OFFSET_VDMA_MM2S_CONTROL_REGISTER       = 0x00
+    , OFFSET_VDMA_MM2S_STATUS_REGISTER        = 0x04
+    , OFFSET_VDMA_MM2S_REG_INDEX              = 0x14
+    , OFFSET_PARK_PTR_REG                     = 0x28
+    , OFFSET_VERSION                          = 0x2c
+    , OFFSET_VDMA_MM2S_VSIZE                  = 0x50
+    , OFFSET_VDMA_MM2S_HSIZE                  = 0x54
+    , OFFSET_VDMA_MM2S_FRMDLY_STRIDE          = 0x58
+    , OFFSET_VDMA_MM2S_FRAMEBUFFER1           = 0x5c
+    , OFFSET_VDMA_MM2S_FRAMEBUFFER2           = 0x60
+    , OFFSET_VDMA_MM2S_FRAMEBUFFER3           = 0x64
+    , OFFSET_VDMA_MM2S_FRAMEBUFFER4           = 0x68
 
-#define OFFSET_VDMA_MM2S_CONTROL_REGISTER       0x00
-#define OFFSET_VDMA_MM2S_STATUS_REGISTER        0x04
-#define OFFSET_VDMA_MM2S_VSIZE                  0x50
-#define OFFSET_VDMA_MM2S_HSIZE                  0x54
-#define OFFSET_VDMA_MM2S_FRMDLY_STRIDE          0x58
-#define OFFSET_VDMA_MM2S_FRAMEBUFFER1           0x5c
-#define OFFSET_VDMA_MM2S_FRAMEBUFFER2           0x60
-#define OFFSET_VDMA_MM2S_FRAMEBUFFER3           0x64
-#define OFFSET_VDMA_MM2S_FRAMEBUFFER4           0x68
-#define OFFSET_VDMA_MM2S_REG_INDEX              0x14
-
-#define OFFSET_VDMA_S2MM_CONTROL_REGISTER       0x30
-#define OFFSET_VDMA_S2MM_STATUS_REGISTER        0x34
-#define OFFSET_VDMA_S2MM_IRQ_MASK               0x3c
-#define OFFSET_VDMA_S2MM_REG_INDEX              0x44
-#define OFFSET_VDMA_S2MM_VSIZE                  0xa0
-#define OFFSET_VDMA_S2MM_HSIZE                  0xa4
-#define OFFSET_VDMA_S2MM_FRMDLY_STRIDE          0xa8
-#define OFFSET_VDMA_S2MM_FRAMEBUFFER1           0xac
-#define OFFSET_VDMA_S2MM_FRAMEBUFFER2           0xb0
-#define OFFSET_VDMA_S2MM_FRAMEBUFFER3           0xb4
-#define OFFSET_VDMA_S2MM_FRAMEBUFFER4           0xb8
+    , OFFSET_VDMA_S2MM_CONTROL_REGISTER       = 0x30
+    , OFFSET_VDMA_S2MM_STATUS_REGISTER        = 0x34
+    , OFFSET_VDMA_S2MM_IRQ_MASK               = 0x3c
+    , OFFSET_VDMA_S2MM_REG_INDEX              = 0x44
+    , OFFSET_VDMA_S2MM_VSIZE                  = 0xa0
+    , OFFSET_VDMA_S2MM_HSIZE                  = 0xa4
+    , OFFSET_VDMA_S2MM_FRMDLY_STRIDE          = 0xa8
+    , OFFSET_VDMA_S2MM_FRAMEBUFFER1           = 0xac
+    , OFFSET_VDMA_S2MM_FRAMEBUFFER2           = 0xb0
+    , OFFSET_VDMA_S2MM_FRAMEBUFFER3           = 0xb4
+    , OFFSET_VDMA_S2MM_FRAMEBUFFER4           = 0xb8
+};
 
 static struct platform_driver __vdma_platform_driver;
 struct platform_device * __pdev;
@@ -114,18 +115,45 @@ struct register_bitfield {
     u32 lsb; u32 mask; const char * name;
 };
 
+static void vdma_status_print( struct seq_file * m, u32 status )
+{
+    if (status & 0x0010)
+        seq_printf(m, " vdma-internal-error");
+    if (status & 0x0020)
+        seq_printf(m, " vdma-slave-error");
+    if (status & 0x0040)
+        seq_printf(m, " vdma-decode-error");
+    if (status & 0x0080)
+        seq_printf(m, " start-of-frame-early-error");
+    if (status & 0x0100)
+        seq_printf(m, " end-of-line-early-error");
+    if (status & 0x0800)
+        seq_printf(m, " start-of-frame-late-error");
+    if (status & 0x1000)
+        seq_printf(m, " frame-count-interrupt");
+    if (status & 0x2000)
+        seq_printf(m, " delay-count-interrupt");
+    if (status & 0x4000)
+        seq_printf(m, " error-interrupt");
+    if (status & 0x8000)
+        seq_printf(m, " end-of-line-late-error");
+    seq_printf(m, " frame-count:%d", (status & 0x00ff0000) >> 16);
+    seq_printf(m, " delay-count:%d", (status & 0xff000000) >> 24);
+    seq_printf(m, " %s\n", (status & 0x01) ? "halted" : "running" );
+}
+
 struct register_bitfield s2mm_cr [] = {
     { 24, 0xff, "IRQDC" }
     , { 16, 0xff, "IRQFC" }
-    , { 15, 0x01, "Rep" }
-    //, { 14, 0x01, "ER_Irq" }
-    //, { 13, 0x01, "DC_Irq" }
-    //, { 12, 0x01, "FC_Irq" }
-    //, { 8, 0x0f, "WrPntrNmbr" }
-    //, { 7, 0x01, "GLsrc" }
-    //, { 4, 0x01, "FCen" }
-    //, { 3, 0x01, "GLen" }
-    //, { 2, 0x01, "Res" }
+    , { 15, 0x01, "" }
+    , { 14, 0x01, "" }
+    , { 13, 0x01, "" }
+    , { 12, 0x01, "" }
+    , { 8, 0x0f, "WrPntrNmbr" }
+    , { 7, 0x01, "GLsrc" }
+    , { 4, 0x01, "FCen" }
+    , { 3, 0x01, "GLen" }
+    , { 2, 0x01, "Res" }
     , { 1, 0x01, "C_Park" }
     , { 0, 0x01, "Run/Stop" }
     , { 0, 0, 0 }
@@ -152,21 +180,22 @@ struct core_register {
     const char * name;
     u32 replicates;
     struct register_bitfield * fields;
+    void (*outf)( struct seq_file * m, u32 status );
 };
 
 const struct core_register __core_register [] = {
     { OFFSET_VDMA_MM2S_CONTROL_REGISTER, "MM2S VDMA CR", 1, s2mm_cr }
-    , { OFFSET_VDMA_MM2S_STATUS_REGISTER, "MM2S VDMA SR", 1, s2mm_sr }
+    , { OFFSET_VDMA_MM2S_STATUS_REGISTER, "MM2S VDMA SR", 1, s2mm_sr, vdma_status_print }
     // , { 0x14, "MM2S Register Index", 1, 0 }
     , { 0x28, "MM2S and S1MM Park Pointer Register", 1, 0 }
     // , { 0x2c, "Video DMA Version register", 1 }
     , { OFFSET_VDMA_S2MM_CONTROL_REGISTER, "S2MM VDMA CR", 1, s2mm_cr }
-    , { OFFSET_VDMA_S2MM_STATUS_REGISTER, "S2MM VDMA SR", 1, s2mm_sr }
+    , { OFFSET_VDMA_S2MM_STATUS_REGISTER, "S2MM VDMA SR", 1, s2mm_sr, vdma_status_print }
     , { OFFSET_VDMA_S2MM_IRQ_MASK, "S2MM_VDMA_IRQ_MASK", 1, 0 }
     // , { 0x44, "S2MM Register Index", 1, 0 }
     , { OFFSET_VDMA_MM2S_VSIZE, "MM2S_VSIZE MM2S", 1, 0 }
     , { OFFSET_VDMA_MM2S_HSIZE, "MM2S_HSIZE MM2S", 1, 0 }
-    , { OFFSET_VDMA_MM2S_FRMDLY_STRIDE, "MM2S Frame Delay and Stride Register", 1, 0 }
+    , { OFFSET_VDMA_MM2S_FRMDLY_STRIDE, "MM2S_FRMDLY_STRIDE", 1, 0 }
     // , { 0x5c, "MM2S Start Address", 1 }
     , { OFFSET_VDMA_S2MM_VSIZE, "VDMA_S2MM_VSIZE", 1, 0 }
     , { OFFSET_VDMA_S2MM_HSIZE, "VDMA_S2MM_VSIZE", 1, 0 }
@@ -300,7 +329,9 @@ vdma_proc_read( struct seq_file * m, void * v )
             u32 offset = __core_register[ i ].offset;
             u32 r = vdma_read32( drv, offset );
             seq_printf( m, "0x%04x\t%04x'%04x\t%s\t", offset, r >> 16, r & 0xffff, __core_register[ i ].name );
-            if ( __core_register[ i ].fields ) {
+            if ( __core_register[ i ].outf ) {
+                (*__core_register[ i ].outf)(m, r);
+            } else if ( __core_register[ i ].fields ) {
                 struct register_bitfield * fields = __core_register[ i ].fields;
                 while ( fields->mask != 0 ) {
                     seq_printf( m, "%s=%x,", fields->name, (r >> fields->lsb)&fields->mask);
