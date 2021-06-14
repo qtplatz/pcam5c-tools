@@ -5,5 +5,6 @@ find_path( DKMS NAMES postinst.in prerm.in Makefile.in  PATHS "${CMAKE_CURRENT_S
 add_subdirectory( dgmod )
 add_subdirectory( csi2rx )
 add_subdirectory( vdma )
+add_subdirectory( ov5640 )
 
 set ( DKMS_PACKAGES ${DKMS_PACKAGES} PARENT_SCOPE )
