@@ -29,11 +29,10 @@
 
 class gpio {
     uint32_t pin_;
-    std::ofstream outf_;
-    std::ifstream inf_;
     uint32_t num_;
     bool auto_unexport_;
     bool __export( uint32_t num );
+    std::string path_;
 public:
     ~gpio();
     gpio( uint32_t num, bool auto_unexport = false );

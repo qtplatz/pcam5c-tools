@@ -47,24 +47,29 @@ gpio::__export( uint32_t num )
 {
     boost::filesystem::path dir = std::string( "/sys/class/gpio/gpio" ) + std::to_string( num );
     boost::system::error_code ec;
-    if ( !boost::filesystem::exists( dir, ec ) ) {
-        std::ofstream of ( "/sys/class/gpio/export" );
-        of << num_;
-    }
-    if ( boost::filesystem::exists( dir, ec ) ) {
-        auto direction = dir / "direction";
-        if ( boost::filesystem::exists( direction, ec ) ) {
-            std::ofstream of ( direction );
-            of << "out";
-        }
 
-        auto path = dir / "value";
-        if ( boost::filesystem::exists( path, ec ) ) {
-            outf_.open( path.string(), std::ios::out | std::ios::binary );
-            inf_.open( path.string(), std::ios::in );
+    auto path = dir / "value";
+    if ( boost::filesystem::exists( path, ec ) ) {
+        path_ = path.string();
+        return true;
+    } else {
+        if ( !boost::filesystem::exists( dir, ec ) ) {
+            std::ofstream of ( "/sys/class/gpio/export" );
+            of << num_;
+        }
+        if ( boost::filesystem::exists( dir, ec ) ) {
+            auto direction = dir / "direction";
+            if ( boost::filesystem::exists( direction, ec ) ) {
+                std::ofstream of ( direction );
+                of << "out";
+            }
+            if ( boost::filesystem::exists( path, ec ) ) {
+                path_ = path.string();
+                return true;
+            }
         }
     }
-    return true;
+    return false;
 }
 
 bool
@@ -82,22 +87,25 @@ gpio::unexport()
 bool
 gpio::operator << ( bool flag )
 {
-    outf_ << ( flag ? "1" : "0" ) << std::endl;
-    outf_.flush();
-    if ( !outf_ ) {
-        std::cerr << "file access error\n";
+    auto outf = std::ofstream( path_ );
+    if ( outf ) {
+        outf << ( flag ? "1" : "0" ) << std::endl;
+        return true;
+    } else {
         return false;
     }
-    return true;
 }
 
 int
 gpio::read()
 {
-    char value;
-    if ( inf_.read( &value, 1 ) ) {
-        if ( value == '0' || value == '1' )
+    auto inf = std::ifstream( path_ );
+    if ( inf ) {
+        char value;
+        inf >> value;
+        if ( value >= '0' )
             return value - '0';
+        return value;
     }
     return -1;
 }
