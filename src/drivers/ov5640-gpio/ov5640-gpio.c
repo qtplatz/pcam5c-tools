@@ -21,7 +21,7 @@
 **
 **************************************************************************/
 
-#include "ov5640.h"
+#include "ov5640-gpio.h"
 #include <linux/cdev.h>
 #include <linux/clk.h>
 #include <linux/ctype.h>
@@ -287,9 +287,9 @@ ov5640_module_probe( struct platform_device * pdev )
         return -ENOMEM;
 
     __pdev = pdev;
-    dev_info( &pdev->dev, "ov5640_module probed" );
+    dev_info( &pdev->dev, "probed" );
 
-	drv->rst_gpio = devm_gpiod_get_optional(&pdev->dev, "reset-gpio", GPIOD_OUT_HIGH);
+	drv->rst_gpio = devm_gpiod_get_optional(&pdev->dev, "reset", GPIOD_OUT_HIGH);
 	if ( IS_ERR( drv->rst_gpio ) ) {
 		if ( PTR_ERR( drv->rst_gpio ) != -EPROBE_DEFER )
 			dev_err(&pdev->dev, "Video Reset GPIO not setup in DT");
@@ -297,6 +297,17 @@ ov5640_module_probe( struct platform_device * pdev )
 	}
 
     dev_info(&pdev->dev, "Video Reset GPIO:%p", drv->rst_gpio );
+
+    if ( drv->rst_gpio == 0 ) {
+        drv->rst_gpio = devm_gpiod_get_optional(&pdev->dev, "pwdn", GPIOD_OUT_HIGH);
+        if ( IS_ERR( drv->rst_gpio ) ) {
+            if ( PTR_ERR( drv->rst_gpio ) != -EPROBE_DEFER )
+                dev_err(&pdev->dev, "Video Reset GPIO not setup in DT");
+            return PTR_ERR( drv->rst_gpio );
+        }
+    }
+    dev_info(&pdev->dev, "Video Reset GPIO:%p", drv->rst_gpio );
+
     sema_init( &drv->sem, 1 );
     platform_set_drvdata( pdev, drv );
 
@@ -311,7 +322,7 @@ ov5640_module_remove( struct platform_device * pdev )
 }
 
 static const struct of_device_id __ov5640_module_id [] = {
-	{ .compatible = "ovti,ov5640" }
+	{ .compatible = "ovti,ov5640-gpio" }
     , {}
 };
 

@@ -27,5 +27,5 @@
 #include <linux/version.h>
 #include <linux/cdev.h>
 
-#define MODNAME     "ov5640"
+#define MODNAME     "ov5640-gpio"
 #define CDEV_NAME   MODNAME

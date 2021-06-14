@@ -1,5 +1,5 @@
 
-project( ov5640 )
+project( ov5640-gpio )
 set ( MODNAME ${PROJECT_NAME} )
 
 set ( OBJM ${MODNAME}.o )
