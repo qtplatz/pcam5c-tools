@@ -55,6 +55,32 @@ module_param( devname, charp, S_IRUGO );
 
 #define countof(x) (sizeof(x)/sizeof((x)[0]))
 
+#define OFFSET_PARK_PTR_REG                     0x28
+#define OFFSET_VERSION                          0x2c
+
+#define OFFSET_VDMA_MM2S_CONTROL_REGISTER       0x00
+#define OFFSET_VDMA_MM2S_STATUS_REGISTER        0x04
+#define OFFSET_VDMA_MM2S_VSIZE                  0x50
+#define OFFSET_VDMA_MM2S_HSIZE                  0x54
+#define OFFSET_VDMA_MM2S_FRMDLY_STRIDE          0x58
+#define OFFSET_VDMA_MM2S_FRAMEBUFFER1           0x5c
+#define OFFSET_VDMA_MM2S_FRAMEBUFFER2           0x60
+#define OFFSET_VDMA_MM2S_FRAMEBUFFER3           0x64
+#define OFFSET_VDMA_MM2S_FRAMEBUFFER4           0x68
+#define OFFSET_VDMA_MM2S_REG_INDEX              0x14
+
+#define OFFSET_VDMA_S2MM_CONTROL_REGISTER       0x30
+#define OFFSET_VDMA_S2MM_STATUS_REGISTER        0x34
+#define OFFSET_VDMA_S2MM_IRQ_MASK               0x3c
+#define OFFSET_VDMA_S2MM_REG_INDEX              0x44
+#define OFFSET_VDMA_S2MM_VSIZE                  0xa0
+#define OFFSET_VDMA_S2MM_HSIZE                  0xa4
+#define OFFSET_VDMA_S2MM_FRMDLY_STRIDE          0xa8
+#define OFFSET_VDMA_S2MM_FRAMEBUFFER1           0xac
+#define OFFSET_VDMA_S2MM_FRAMEBUFFER2           0xb0
+#define OFFSET_VDMA_S2MM_FRAMEBUFFER3           0xb4
+#define OFFSET_VDMA_S2MM_FRAMEBUFFER4           0xb8
+
 static struct platform_driver __vdma_platform_driver;
 struct platform_device * __pdev;
 
@@ -129,22 +155,22 @@ struct core_register {
 };
 
 const struct core_register __core_register [] = {
-    { 0x00, "MM2S VDMA CR", 1, 0 }
-    , { 0x04, "MM2S VDMA SR", 1, 0 }
-    , { 0x14, "MM2S Register Index", 1, 0 }
+    { OFFSET_VDMA_MM2S_CONTROL_REGISTER, "MM2S VDMA CR", 1, s2mm_cr }
+    , { OFFSET_VDMA_MM2S_STATUS_REGISTER, "MM2S VDMA SR", 1, s2mm_sr }
+    // , { 0x14, "MM2S Register Index", 1, 0 }
     , { 0x28, "MM2S and S1MM Park Pointer Register", 1, 0 }
     // , { 0x2c, "Video DMA Version register", 1 }
-    , { 0x30, "S2MM VDMA CR", 1, s2mm_cr }
-    , { 0x34, "S2MM VDMA SR", 1, s2mm_sr }
-    , { 0x3c, "S2MM_VDMA_IRQ_MASK", 1, 0 }
-    , { 0x44, "S2MM Register Index", 1, 0 }
-    , { 0x50, "MM2S_VSIZE MM2S Vertical Size Register", 1, 0 }
-    , { 0x54, "MM2S_HSIZE MM2S Horizontal Size Register", 1, 0 }
-    , { 0x58, "MM2S_FRMDLY_STRIDE MM2S Frame Delay and Stride Register", 1, 0 }
+    , { OFFSET_VDMA_S2MM_CONTROL_REGISTER, "S2MM VDMA CR", 1, s2mm_cr }
+    , { OFFSET_VDMA_S2MM_STATUS_REGISTER, "S2MM VDMA SR", 1, s2mm_sr }
+    , { OFFSET_VDMA_S2MM_IRQ_MASK, "S2MM_VDMA_IRQ_MASK", 1, 0 }
+    // , { 0x44, "S2MM Register Index", 1, 0 }
+    , { OFFSET_VDMA_MM2S_VSIZE, "MM2S_VSIZE MM2S", 1, 0 }
+    , { OFFSET_VDMA_MM2S_HSIZE, "MM2S_HSIZE MM2S", 1, 0 }
+    , { OFFSET_VDMA_MM2S_FRMDLY_STRIDE, "MM2S Frame Delay and Stride Register", 1, 0 }
     // , { 0x5c, "MM2S Start Address", 1 }
-    , { 0xa0, "Vertical Size Register", 1, 0 }
-    , { 0xa4, "Horizontal Size Register", 1, 0 }
-    , { 0xa8, "Frame Delay and Stride Register", 1, 0 }
+    , { OFFSET_VDMA_S2MM_VSIZE, "VDMA_S2MM_VSIZE", 1, 0 }
+    , { OFFSET_VDMA_S2MM_HSIZE, "VDMA_S2MM_VSIZE", 1, 0 }
+    , { OFFSET_VDMA_S2MM_FRMDLY_STRIDE, "VDMA_S2MM_FRMDLY_STRIDE", 1, 0 }
     // , { 0xac, "S2MM Start Address", 16 }
 };
 
@@ -160,6 +186,7 @@ static inline void vdma_write32(struct vdma_driver * drv, u32 addr, u32 value)
 
 static void vdma_reset( struct vdma_driver * drv )
 {
+    dev_info( &__pdev->dev, "%s\n", __func__ );
     ((u32*)drv->iomem)[ 0 ] = 0x04;
     ((u32*)drv->iomem)[ 0x30 / sizeof(u32) ] = 0x04;
 }
@@ -172,40 +199,85 @@ static bool vdma_reset_busy( struct vdma_driver * drv )
 
 static void vdma_start_triple_buffering( struct vdma_driver * drv )
 {
+    dev_info( &__pdev->dev, "%s\n", __func__ );
     vdma_reset( drv );
     while ( vdma_reset_busy( drv ) )
         ;
-    ((u32*)drv->iomem)[ 0x04 / sizeof(u32) ] = 0; // clear SR
-    ((u32*)drv->iomem)[ 0x34 / sizeof(u32) ] = 0; // clear SR
-    ((u32*)drv->iomem)[ 0x3c / sizeof(u32) ] = 0x0f; // do not mask interrupts
 
     int interrupt_frame_count = 3;
     u32* mm2scr = (u32*)drv->iomem + (0x00/sizeof(u32));
-    u32* s2mmcr = (u32*)drv->iomem + (0x3c/sizeof(u32));
+    u32* mm2ssr = (u32*)drv->iomem + (0x04/sizeof(u32));
+    u32* s2mmcr = (u32*)drv->iomem + (0x30/sizeof(u32));
+    u32* s2mmsr = (u32*)drv->iomem + (0x34/sizeof(u32));
 
+    *s2mmsr = 0; // clear SR
+    *mm2ssr = 0; // clear SR
+    ((u32*)drv->iomem)[ 0x3c / sizeof(u32) ] = 0x0f; // do not mask interrupts
+#if 0 // move down
     *s2mmcr =
         (interrupt_frame_count << 16) |
-        0x0001 | // VDMA_CONTROL_REGISTER_START |
-        0x0008 | // VDMA_CONTROL_REGISTER_GENLOCK_ENABLE |
         0x0080 | // VDMA_CONTROL_REGISTER_INTERNAL_GENLOCK |
-        0x0002 // VDMA_CONTROL_REGISTER_CIRCULAR_PARK);
-        ;
+        0x0008 | // VDMA_CONTROL_REGISTER_GENLOCK_ENABLE |
+        0x0002 | // VDMA_CONTROL_REGISTER_CIRCULAR_PARK);
+        0x0001 ; // Run/Stop  (1 = RUN)
 
     *mm2scr =
         (interrupt_frame_count << 16) |
-        0x0001 | // VDMA_CONTROL_REGISTER_START |
-        0x0008 | // VDMA_CONTROL_REGISTER_GENLOCK_ENABLE |
         0x0080 | // VDMA_CONTROL_REGISTER_INTERNAL_GENLOCK |
-        0x0002 // VDMA_CONTROL_REGISTER_CIRCULAR_PARK);
-        ;
+        0x0008 | // VDMA_CONTROL_REGISTER_GENLOCK_ENABLE |
+        0x0002 | // VDMA_CONTROL_REGISTER_CIRCULAR_PARK);
+        0x0001 ; // Run/Stop  (1 = RUN)
+#endif
+    vdma_write32( drv, 0x14, 0 ); // MM2S Index -> 0
+    vdma_write32( drv, 0x44, 0 ); // S2MM Index -> 0
+
+    for ( int i = 0; i < 4; ++ i ) {
+        ((u32*)drv->iomem)[ i + 0x5c / sizeof(u32) ] = drv->dma_handle[ i ];
+        ((u32*)drv->iomem)[ i + 0xac / sizeof(u32) ] = drv->dma_handle[ i ];
+    }
+    ((u32*)drv->iomem)[ OFFSET_PARK_PTR_REG / sizeof(u32) ] = 0; // parc ptr_reg
+
+    // int
+    // vdma_setup(vdma_handle *handle, unsigned int baseAddr,
+    // int width, int height, int pixelLength, unsigned int fb1Addr, unsigned int fb2Addr, unsigned int fb3Addr) {
+    vdma_write32(drv, OFFSET_VDMA_S2MM_FRMDLY_STRIDE, 1920 * 4 );
+    vdma_write32(drv, OFFSET_VDMA_MM2S_FRMDLY_STRIDE, 1920 * 4 );
+
+    // Write horizontal size (bytes)
+    vdma_write32(drv, OFFSET_VDMA_S2MM_HSIZE, 1920 * 4 );
+    vdma_write32(drv, OFFSET_VDMA_MM2S_HSIZE, 1920 * 4 );
+
+    // Write vertical size (lines), this actually starts the transfer
+    vdma_write32(drv, OFFSET_VDMA_S2MM_VSIZE, 1080 );
+    vdma_write32(drv, OFFSET_VDMA_MM2S_VSIZE, 1080 );
+
+    *s2mmcr =
+        (interrupt_frame_count << 16) |
+        0x0080 | // VDMA_CONTROL_REGISTER_INTERNAL_GENLOCK |
+        0x0008 | // VDMA_CONTROL_REGISTER_GENLOCK_ENABLE |
+        0x0002 | // VDMA_CONTROL_REGISTER_CIRCULAR_PARK);
+        0x0001 ; // Run/Stop  (1 = RUN)
+
+    *mm2scr =
+        (interrupt_frame_count << 16) |
+        0x0080 | // VDMA_CONTROL_REGISTER_INTERNAL_GENLOCK |
+        0x0008 | // VDMA_CONTROL_REGISTER_GENLOCK_ENABLE |
+        0x0002 | // VDMA_CONTROL_REGISTER_CIRCULAR_PARK);
+        0x0001 ; // Run/Stop  (1 = RUN)
+
+    int counter = 1000;
+    while ( counter-- && ( ((*s2mmcr) & 01) == 0 || ((*s2mmsr) & 01) == 1 ) ) {
+        dev_info( &__pdev->dev, "%s -- waiting for VDMA to start running CR=%x,SR=%x; %d.\n", __func__, *s2mmcr, *s2mmsr, counter );
+    }
+    dev_info( &__pdev->dev, "%s -- done VDMA to start running CR=%x,SR=%x; %d.\n", __func__, *s2mmcr, *s2mmsr, counter );
 }
 
 static irqreturn_t
 handle_interrupt( int irq, void *dev_id )
 {
+    dev_info( &__pdev->dev, "handle_interrupt\n" );
     struct vdma_driver * driver = dev_id ? platform_get_drvdata( dev_id ) : 0;
     (void)(driver);
-    dev_info( &__pdev->dev, "handle_interrupt\n" );
     return IRQ_HANDLED;
 }
 
@@ -235,16 +307,16 @@ vdma_proc_read( struct seq_file * m, void * v )
                     ++fields;
                 }
             }
-            seq_printf( m, "\n" );
+            seq_printf(m, "\n" );
         }
-        seq_printf( m, "MM2S VDMA Start Address\n" );
-        for ( size_t idx = 0; idx < 2; ++idx ) {
-            vdma_write32( drv, 0x44, idx ); // S2MM Index -> 0
-            for ( size_t k = 0; k < 16; ++k ) {
-                seq_printf( m, "[%02x] 0x%08x\t", (idx<<4)|k, vdma_read32( drv, 0xac + (k * sizeof( u32 )) ) );
-                if ( (k + 1) % 8 == 0 )
-                    seq_printf( m, "\n" );
-            }
+        vdma_write32( drv, OFFSET_VDMA_S2MM_REG_INDEX, 0 ); // S2MM Index -> 0
+        seq_printf( m, "S2MM: " );
+        for ( size_t k = 0; k < 8; ++k ) {
+            seq_printf( m, "[%02x] 0x%08x\t", k, vdma_read32( drv, OFFSET_VDMA_S2MM_FRAMEBUFFER1 + (k * sizeof( u32 )) ) );
+        }
+        seq_printf( m, "\nMM2S: " );
+        for ( size_t k = 0; k < 8; ++k ) {
+            seq_printf( m, "[%02x] 0x%08x\t", k, vdma_read32( drv, OFFSET_VDMA_MM2S_FRAMEBUFFER1 + (k * sizeof( u32 )) ) );
         }
         seq_printf( m, "\nDMA pages\n" );
         for ( size_t i = 0; i < countof( drv->dma_vaddr ) && drv->dma_vaddr[ i ]; ++i ) {
@@ -266,6 +338,7 @@ vdma_proc_write( struct file * filep, const char * user, size_t size, loff_t * f
         return -EFAULT;
 
     readbuf[ size ] = '\0';
+    dev_info( &__pdev->dev, "proc_write = %s\n", readbuf );
 
     if ( strcmp( readbuf, "halt" ) == 0 ) {
         vdma_reset( drv );
@@ -455,17 +528,7 @@ vdma_module_probe( struct platform_device * pdev )
 
     for ( u32 i = 0; i < countof( drv->dma_vaddr ); ++i ) {
         if (( drv->dma_vaddr[ i ] = dma_alloc_coherent( &pdev->dev, dma_size, &drv->dma_handle[ i ], GFP_KERNEL ) )) {
-            // dev_info( &pdev->dev, "vdma dma alloc_coherent %p\t%x\n", drv->dma_vaddr[ i ], drv->dma_handle[ i ] );
-            u32 * p = drv->dma_vaddr[ i ];
-            for ( int k = 0; k < (dma_size/sizeof(u32)); ++k )
-                *p++ = 0xcafe0000 | k;
-            if ( i < 16 ) {
-                vdma_write32( drv, 0x44, 0 );
-                vdma_write32( drv, 0xac + (i * sizeof(u32)), drv->dma_handle[ i ] );
-            } else {
-                vdma_write32( drv, 0x44, 1 );
-                vdma_write32( drv, 0xac + ((i-16) * sizeof(u32)), drv->dma_handle[ i ] );
-            }
+            dev_info( &pdev->dev, "vdma dma alloc_coherent %p\t%x\n", drv->dma_vaddr[ i ], drv->dma_handle[ i ] );
         } else {
             dev_err( &pdev->dev, "failed vdma dma alloc_coherent %p\n", drv->dma_vaddr );
             break;
@@ -475,7 +538,7 @@ vdma_module_probe( struct platform_device * pdev )
     platform_set_drvdata( pdev, drv );
 
     int i = 0;
-    while ( ( irq = platform_get_irq( pdev, i++ ) ) > 0 ) {
+    while (( ( irq = platform_get_irq( pdev, i++ ) ) > 0 ) && i < 2 ) {
         dev_info( &pdev->dev, "platform_get_irq: %d", irq );
         if ( devm_request_irq( &pdev->dev, irq, handle_interrupt, 0, MODNAME, pdev ) == 0 ) {
             drv->irq[ i - 1 ] = irq;
@@ -484,6 +547,7 @@ vdma_module_probe( struct platform_device * pdev )
             return -ENODEV;
         }
     }
+    vdma_start_triple_buffering( drv );
     return 0;
 }
 
