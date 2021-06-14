@@ -559,7 +559,7 @@ vdma_module_probe( struct platform_device * pdev )
 
     for ( u32 i = 0; i < countof( drv->dma_vaddr ); ++i ) {
         if (( drv->dma_vaddr[ i ] = dma_alloc_coherent( &pdev->dev, dma_size, &drv->dma_handle[ i ], GFP_KERNEL ) )) {
-            dev_info( &pdev->dev, "vdma dma alloc_coherent %p\t%x\n", drv->dma_vaddr[ i ], drv->dma_handle[ i ] );
+            // dev_info( &pdev->dev, "vdma dma alloc_coherent %p\t%x\n", drv->dma_vaddr[ i ], drv->dma_handle[ i ] );
         } else {
             dev_err( &pdev->dev, "failed vdma dma alloc_coherent %p\n", drv->dma_vaddr );
             break;
@@ -569,7 +569,7 @@ vdma_module_probe( struct platform_device * pdev )
     platform_set_drvdata( pdev, drv );
 
     int i = 0;
-    while (( ( irq = platform_get_irq( pdev, i++ ) ) > 0 ) && i < 2 ) {
+    while (( ( irq = platform_get_irq( pdev, i++ ) ) > 0 ) && ( i < countof( drv->irq ) )) {
         dev_info( &pdev->dev, "platform_get_irq: %d", irq );
         if ( devm_request_irq( &pdev->dev, irq, handle_interrupt, 0, MODNAME, pdev ) == 0 ) {
             drv->irq[ i - 1 ] = irq;
