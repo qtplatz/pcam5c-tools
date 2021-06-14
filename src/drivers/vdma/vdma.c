@@ -115,65 +115,66 @@ struct register_bitfield {
     u32 lsb; u32 mask; const char * name;
 };
 
+struct register_bitfield irq_mask [] = {
+    { 3, 0x01, "eol-late-err" }
+    , { 2, 0x01, "sof-late-err" }
+    , { 1, 0x01, "eol-early-err" }
+    , { 0, 0x01, "sof-early-err" }
+    , { 0, 0, 0 }
+};
+
 static void vdma_status_print( struct seq_file * m, u32 status )
 {
     if (status & 0x0010)
-        seq_printf(m, " vdma-internal-error");
+        seq_printf(m, "vdma-internal-error;");
     if (status & 0x0020)
-        seq_printf(m, " vdma-slave-error");
+        seq_printf(m, "vdma-slave-error;");
     if (status & 0x0040)
-        seq_printf(m, " vdma-decode-error");
+        seq_printf(m, "vdma-decode-error;");
     if (status & 0x0080)
-        seq_printf(m, " start-of-frame-early-error");
+        seq_printf(m, "start-of-frame-early-error;");
     if (status & 0x0100)
-        seq_printf(m, " end-of-line-early-error");
+        seq_printf(m, "end-of-line-early-error;");
     if (status & 0x0800)
-        seq_printf(m, " start-of-frame-late-error");
+        seq_printf(m, "start-of-frame-late-error;");
     if (status & 0x1000)
-        seq_printf(m, " frame-count-interrupt");
+        seq_printf(m, "frame-count-interrupt;");
     if (status & 0x2000)
-        seq_printf(m, " delay-count-interrupt");
+        seq_printf(m, "delay-count-interrupt;");
     if (status & 0x4000)
-        seq_printf(m, " error-interrupt");
+        seq_printf(m, "error-interrupt;");
     if (status & 0x8000)
-        seq_printf(m, " end-of-line-late-error");
-    seq_printf(m, " frame-count:%d", (status & 0x00ff0000) >> 16);
-    seq_printf(m, " delay-count:%d", (status & 0xff000000) >> 24);
-    seq_printf(m, " %s\n", (status & 0x01) ? "halted" : "running" );
+        seq_printf(m, "end-of-line-late-error;");
+    seq_printf(m, "frame-count:%d;", (status & 0x00ff0000) >> 16);
+    seq_printf(m, "delay-count:%d;", (status & 0xff000000) >> 24);
+    seq_printf(m, "%s", (status & 0x01) ? "halted" : "running" );
 }
 
-struct register_bitfield s2mm_cr [] = {
-    { 24, 0xff, "IRQDC" }
-    , { 16, 0xff, "IRQFC" }
-    , { 15, 0x01, "" }
-    , { 14, 0x01, "" }
-    , { 13, 0x01, "" }
-    , { 12, 0x01, "" }
-    , { 8, 0x0f, "WrPntrNmbr" }
-    , { 7, 0x01, "GLsrc" }
-    , { 4, 0x01, "FCen" }
-    , { 3, 0x01, "GLen" }
-    , { 2, 0x01, "Res" }
-    , { 1, 0x01, "C_Park" }
-    , { 0, 0x01, "Run/Stop" }
-    , { 0, 0, 0 }
-};
-struct register_bitfield s2mm_sr [] = {
-    { 24, 0xff, "IRQDC" }
-    , { 16, 0xff, "IRQFC" }
-    , { 15, 0x01, "EOLEr" }
-    //, { 14, 0x01, "ER_Irq" }
-    //, { 13, 0x01, "DC_Irq" }
-    //, { 12, 0x01, "FC_Irq" }
-    //, { 8, 0x0f, "WrPntrNmbr" }
-    //, { 7, 0x01, "GLsrc" }
-    //, { 4, 0x01, "FCen" }
-    //, { 3, 0x01, "GLen" }
-    //, { 2, 0x01, "Res" }
-    , { 4, 0x01, "IntErr" }
-    , { 0, 0x01, "Halted" }
-    , { 0, 0, 0 }
-};
+static void vdma_cr_print( struct seq_file * m, u32 value )
+{
+    seq_printf(m, "irq-delay-count:%d;", value >> 24 );
+    seq_printf(m, "irq-frame-count:%d;", ( value & 0x00ff0000 ) >> 16 );
+    if ( value & 0x00008000 )
+        seq_printf(m, "repeat;");
+    if ( value & 0x00004000 )
+        seq_printf(m, "err-inq;");
+    if ( value & 0x00002000 )
+        seq_printf(m, "dlycnt-irq;");
+    if ( value & 0x00001000 )
+        seq_printf(m, "frmcnt-irqn;");
+    seq_printf(m, "wrt-pntr-num:%d;", ( value >> 8 ) & 0x0f );
+    if ( value & 0x00000080 )
+        seq_printf(m, "gen-lock-src;" );
+    if ( value & 0x00000010 )
+        seq_printf(m, "frame-cnt;" );
+    if ( value & 0x00000008 )
+        seq_printf(m, "gen-lock;" );
+    if ( value & 0x00000004 )
+        seq_printf(m, "reset;" );
+    if ( value & 0x00000002 )
+        seq_printf(m, "circular-park;" );
+    seq_printf(m, "%s", (value & 0x00) ? "stop" : "run" );
+}
 
 struct core_register {
     u32 offset;
@@ -184,21 +185,21 @@ struct core_register {
 };
 
 const struct core_register __core_register [] = {
-    { OFFSET_VDMA_MM2S_CONTROL_REGISTER, "MM2S VDMA CR", 1, s2mm_cr }
-    , { OFFSET_VDMA_MM2S_STATUS_REGISTER, "MM2S VDMA SR", 1, s2mm_sr, vdma_status_print }
+    { OFFSET_VDMA_MM2S_CONTROL_REGISTER, "MM2S VDMA CR", 1, 0, vdma_cr_print }
+    , { OFFSET_VDMA_MM2S_STATUS_REGISTER, "MM2S VDMA SR", 1, 0, vdma_status_print }
     // , { 0x14, "MM2S Register Index", 1, 0 }
-    , { 0x28, "MM2S and S1MM Park Pointer Register", 1, 0 }
+    , { OFFSET_PARK_PTR_REG, "PARK_PTR_REG", 1, 0 }
     // , { 0x2c, "Video DMA Version register", 1 }
-    , { OFFSET_VDMA_S2MM_CONTROL_REGISTER, "S2MM VDMA CR", 1, s2mm_cr }
-    , { OFFSET_VDMA_S2MM_STATUS_REGISTER, "S2MM VDMA SR", 1, s2mm_sr, vdma_status_print }
-    , { OFFSET_VDMA_S2MM_IRQ_MASK, "S2MM_VDMA_IRQ_MASK", 1, 0 }
+    , { OFFSET_VDMA_S2MM_CONTROL_REGISTER, "S2MM VDMA CR", 1, 0, vdma_cr_print }
+    , { OFFSET_VDMA_S2MM_STATUS_REGISTER, "S2MM VDMA SR", 1, 0, vdma_status_print }
+    , { OFFSET_VDMA_S2MM_IRQ_MASK, "S2MM_VDMA_IRQ_MASK", 1, irq_mask, 0 }
     // , { 0x44, "S2MM Register Index", 1, 0 }
     , { OFFSET_VDMA_MM2S_VSIZE, "MM2S_VSIZE MM2S", 1, 0 }
     , { OFFSET_VDMA_MM2S_HSIZE, "MM2S_HSIZE MM2S", 1, 0 }
     , { OFFSET_VDMA_MM2S_FRMDLY_STRIDE, "MM2S_FRMDLY_STRIDE", 1, 0 }
     // , { 0x5c, "MM2S Start Address", 1 }
     , { OFFSET_VDMA_S2MM_VSIZE, "VDMA_S2MM_VSIZE", 1, 0 }
-    , { OFFSET_VDMA_S2MM_HSIZE, "VDMA_S2MM_VSIZE", 1, 0 }
+    , { OFFSET_VDMA_S2MM_HSIZE, "VDMA_S2MM_HSIZE", 1, 0 }
     , { OFFSET_VDMA_S2MM_FRMDLY_STRIDE, "VDMA_S2MM_FRMDLY_STRIDE", 1, 0 }
     // , { 0xac, "S2MM Start Address", 16 }
 };
@@ -232,7 +233,6 @@ static void vdma_start_triple_buffering( struct vdma_driver * drv )
     vdma_reset( drv );
     while ( vdma_reset_busy( drv ) )
         ;
-
     int interrupt_frame_count = 3;
     u32* mm2scr = (u32*)drv->iomem + (0x00/sizeof(u32));
     u32* mm2ssr = (u32*)drv->iomem + (0x04/sizeof(u32));
