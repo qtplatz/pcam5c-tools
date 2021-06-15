@@ -54,12 +54,13 @@ main( int argc, char **argv )
             ( "help,h",        "Display this help message" )
             ( "device,d",      po::value< std::string >()->default_value("/dev/i2c-0"), "i2c device" )
             ( "rreg,r",        po::value<std::vector<std::string> >()->multitoken(), "read regs" )
+            ( "wreg,w",        po::value<std::vector<std::string> >()->multitoken(), "write reg <addr, value>" )
             ( "all,a",         "read all registers" )
             ( "startup",       "initialize pcam-5c" )
             ( "gpio-number,n", po::value< uint32_t >()->default_value( 960 ), "cam_gpio number" ) // 906+54
             ( "gpio",          po::value< std::string >()->default_value("")->implicit_value("read")
               , "gpio set value [0|1]" )
-            ( "halt",          "Halt Pcam 5c (gpio down)" )
+            ( "off",           "Halt Pcam 5c (gpio down)" )
             ( "on",            "PCam 5c power on" )
             ( "reset",         "PCam 5c power cycle" )
             ( "status",        "PCam 5c power state" )
@@ -87,6 +88,8 @@ main( int argc, char **argv )
         } else if ( arg == "0" || arg == "false" ) {
             if ( io << 0 )
                 std::cout << "gpio" << num << "=" << 0 << std::endl;
+        } else if ( arg == "unexport" ) {
+            io.unexport();
         }
         return 0;
     }
@@ -120,7 +123,7 @@ main( int argc, char **argv )
         }
     }
 
-    if ( vm.count( "rreg" ) || vm.count( "all" ) || vm.count( "startup" ) ) {
+    if ( vm.count( "rreg" ) || vm.count( "wreg" ) || vm.count( "all" ) || vm.count( "startup" ) ) {
 
         if ( auto i2c = std::make_unique< i2c_linux::i2c >() ) {
             if ( vm.count( "device" ) ) {
@@ -130,6 +133,17 @@ main( int argc, char **argv )
                 if ( vm.count( "rreg" ) ) {
                     pcam5c().read_regs( *i2c, vm[ "rreg" ].as< std::vector< std::string > >() );
                     return 0;
+                }
+                if ( vm.count( "wreg" ) ) {
+                    auto values = vm[ "wreg" ].as< std::vector< std::string > >();
+                    if ( values.size() == 2 ) {
+                        char * p_end;
+                        auto reg = std::strtol( values[0].c_str(), &p_end, 0 );
+                        auto val = std::strtol( values[1].c_str(), &p_end, 0 );
+                        pcam5c().write_reg( *i2c, {uint16_t(reg), uint8_t(val)}, true );
+                    } else {
+                        std::cerr << "invalid number of arguments" << std::endl;
+                    }
                 }
                 if ( vm.count( "all" ) ) {
                     pcam5c().read_all( *i2c );

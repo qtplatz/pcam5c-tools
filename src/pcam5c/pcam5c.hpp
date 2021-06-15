@@ -25,16 +25,25 @@
 #pragma once
 
 #include <vector>
+#include <chrono>
+#include <boost/json.hpp>
+
+using namespace std::chrono_literals;
 
 namespace i2c_linux {
     class i2c;
 }
 
 class pcam5c {
+    void  pprint( std::ostream&,  const std::pair< const uint16_t, boost::json::object >& reg, uint8_t value ) const;
 public:
     bool read_all( i2c_linux::i2c& );
     bool startup( i2c_linux::i2c& );
     void read_regs( i2c_linux::i2c&, const std::vector< std::string >& );
     //bool write_reg( i2c_linux::i2c&, uint16_t reg, uint8_t val, bool verbose = true ) const;
     bool write_reg( i2c_linux::i2c&, const std::pair<uint16_t,uint8_t>&, bool verbose = true ) const;
+
+    bool gpio_state() const;
+    bool gpio_value( bool ) const;
+    bool gpio_reset( std::chrono::milliseconds twait = 5ms ) const; // off --> on (ov5640 manual describes 1ms wait)
 };

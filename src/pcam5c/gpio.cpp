@@ -81,7 +81,7 @@ gpio::unexport()
         std::ofstream of ( "/sys/class/gpio/unexport" );
         of << num_;
     }
-    return true;
+    return !boost::filesystem::exists( dir, ec );
 }
 
 bool

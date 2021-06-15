@@ -28,13 +28,14 @@
 #include <optional>
 #include <utility>
 #include <vector>
+#include <boost/json.hpp>
 
 namespace i2c_linux { class i2c; }
 constexpr static std::pair< uint8_t, uint8_t > ov5640_chipid_t = { 0x56, 0x40 };
 
 class ov5640 {
 public:
-    static const std::vector< std::pair< const uint16_t, const char * > >& regs();
+    static const std::vector< std::pair< const uint16_t, boost::json::object > >& regs();
     static const std::vector< std::pair< const uint16_t, const uint8_t > >& cfg_init();
 
     std::optional< std::pair<uint8_t, uint8_t> > chipid( i2c_linux::i2c& ) const;
