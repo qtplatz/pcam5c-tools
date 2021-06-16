@@ -129,12 +129,18 @@ main( int argc, char **argv )
         std::cout << "gpio_reset: " << std::boolalpha << res << "\tgpio_state: " << pcam5c().gpio_state() << std::endl;
     }
     if ( vm.count( "off" ) ) {
-        auto res = pcam5c().gpio_value( false );
-        std::cout << "gpio_value(0): " << std::boolalpha << res << "\tgpio_state: " << pcam5c().gpio_state() << std::endl;
+        if ( pcam5c().gpio_value( false ) && (pcam5c().gpio_state() == false) ) {
+            std::cout << "gpio_value set to false with success" << std::endl;
+        } else {
+            std::cout << "gpio_value set to false but it was failed" << std::endl;
+        }
     }
     if ( vm.count( "on" ) ) {
-        auto res = pcam5c().gpio_value( true );
-        std::cout << "gpio_value(1): " << std::boolalpha << res << "\tgpio_state: " << pcam5c().gpio_state() << std::endl;
+        if ( pcam5c().gpio_value( true ) && (pcam5c().gpio_state() == true) ) {
+            std::cout << "gpio_value set to true with success" << std::endl;
+        } else {
+            std::cout << "gpio_value set to true but it was failed" << std::endl;
+        }
     }
 
     if ( vm.count( "rreg" ) ) {
@@ -162,8 +168,9 @@ main( int argc, char **argv )
         pcam5c().read_regs( *i2c0::instance(), regs );
     }
     if ( vm.count( "sstat" ) ) {
-        std::vector< std::string > regs = { "0x3000", "0x3001", "0x3002", "0x3003", "0x3004"
-            , "0x3004", "0x3005", "0x3006", "0x3007", "0x3008", "0x300e", "0x302a" };
+        std::vector< std::string > regs = {
+            "0x3000", "0x3001", "0x3002", "0x3003", "0x3004"
+            , "0x3005", "0x3006", "0x3007", "0x3008", "0x300e", "0x302a" };
         pcam5c().read_regs( *i2c0::instance(), regs );
     }
     if ( vm.count( "pad" ) ) {

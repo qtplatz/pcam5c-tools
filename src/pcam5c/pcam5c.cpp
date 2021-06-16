@@ -71,10 +71,10 @@ pcam5c::pprint( std::ostream& o,  const std::pair< const uint16_t, boost::json::
                             case 7: bin = std::bitset< 7 >( value >> lsb ).to_string(); break;
                             case 8: bin = std::bitset< 8 >( value >> lsb ).to_string(); break;
                             }
-                            o << "\t" << ba[2].as_string() << "[" << msb << ":" << lsb << "]=" << bin;
+                            o << "\t[" << msb << ":" << lsb << "]" << ba[2].as_string() << "= " << bin;
                         } else if ( ba.size() == 2 ) {
                             uint32_t lsb = ba[0].as_int64();
-                            o << "\t" << ba[1].as_string() << "[" << lsb << "]=" << std::bitset< 1 >( value >> lsb ).to_string();
+                            o << "\t[" << lsb << "]" << ba[1].as_string() << "= " << std::bitset< 1 >( value >> lsb ).to_string();
                         }
                     }
                 }
@@ -82,7 +82,18 @@ pcam5c::pprint( std::ostream& o,  const std::pair< const uint16_t, boost::json::
         }
         o << std::endl;
     } else {
-        o << boost::format( "[%04x] =\t0x%02x\t" ) % reg.first % unsigned( value ) << "--" << std::endl;
+        o << boost::format( "[%04x] =\t0x%02x\t" ) % reg.first % unsigned( value ) << "\t--" << std::endl;
+    }
+}
+
+void
+pcam5c::pprint( std::ostream& o,  uint16_t reg, uint8_t value ) const
+{
+    auto it = std::lower_bound(ov5640::regs().begin(), ov5640::regs().end(), reg, []( const auto& a, const auto& b ){ return a.first < b; } );
+    if ( it != ov5640::regs().end() && it->first == reg ) {
+        pprint( o, *it, value );
+    } else {
+        o << boost::format( "[%04x] =\t0x%02x\t" ) % reg % unsigned( value ) << "\t--" << std::endl;
     }
 }
 
@@ -107,12 +118,8 @@ pcam5c::read_regs( i2c_linux::i2c& iic, const std::vector< std::string >& regs )
         char * p_end;
         auto reg = std::strtol( sreg.c_str(), &p_end, 0 );
         if ( reg >= 0x3000 && reg < 0x6040 ) {
-            boost::json::object obj;
-            const char * label = "";
-            auto it = std::lower_bound(ov5640::regs().begin(), ov5640::regs().end(), reg
-                                       , []( const auto& a, const auto& b ){ return a.first < b; } );
             if ( auto value = iic.read_reg( reg ) ) {
-                pprint( std::cout, *it, *value );
+                pprint( std::cout, reg, *value );
             }
         } else {
             std::cerr << "specified register : " << sreg << ", (" << std::hex << reg << ") out of range\n";
@@ -126,14 +133,8 @@ pcam5c::write_reg( i2c_linux::i2c& iic, const std::pair<uint16_t, uint8_t>& r, b
     bool result = iic.write_reg( r.first, r.second );
 
     if ( verbose ) {
-        // boost::json::object obj;
-        auto it = std::lower_bound( ov5640::regs().begin(), ov5640::regs().end(), r.first
-                                    , []( const auto& a, const auto& b ){ return a.first < b; } );
-        if ( it != ov5640::regs().end() ) {
-            // obj = it->second;
-            std::cout << "write reg: ";
-            pprint( std::cout, *it, r.second );
-        }
+        std::cout << "write reg: ";
+        pprint( std::cout, r.first, r.second );
     }
     return result;
 }

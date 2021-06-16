@@ -36,6 +36,7 @@ namespace i2c_linux {
 
 class pcam5c {
     void  pprint( std::ostream&,  const std::pair< const uint16_t, boost::json::object >& reg, uint8_t value ) const;
+    void  pprint( std::ostream&,  uint16_t reg, uint8_t value ) const;
 public:
     bool read_all( i2c_linux::i2c& );
     bool startup( i2c_linux::i2c& );

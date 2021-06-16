@@ -49,7 +49,14 @@ namespace {
     using namespace boost::json;
     //const std::vector< std::pair< const uint16_t, const char * > > __regs = {
     const std::vector< std::pair< const uint16_t, boost::json::object > > __regs = {
-        { 0x3007,   object( {{"name","CLOCK ENABLE03"}               }) }
+        { 0x3000, object( {{"name","SYSTEM RESET00"}   ,{"flds",array( {{7,"BIST"},{6,"MEM"},{5,"MCU"},{4,"OTP"},{3,"STB"},{2,"d5060"},{1,"TC"},{0,"AC"}} )} /**/}) }
+        , { 0x3001, object( {{"name","SYSTEM RESET01"}   ,{"flds",array( {{7,"AWB"},{6,"AFC"},{5,"ISP"},{4,"FC"},{3,"S2P"},{2,"BLC"},{1,"AEC"},{0,"AEC"}} )} /**/}) }
+        , { 0x3002, object( {{"name","SYSTEM RESET02"}   ,{"flds",array( {{7,"VFIFO"},{5,"FMT"},{4,"JFIFO"},{3,"SFIFO"},{2,"JPG"},{1,"MUX"},{0,"AVG"}} )} /**/}) }
+        , { 0x3003, object( {{"name","SYSTEM RESET03"}   ,{"flds",array( {{5,"DGC"},{4,"SYNC FIFO"},{3,"PSRAM"},{2,"ISP FC"},{1,"MIPI"},{0,"DVP"}} )} /**/}) }
+        , { 0x3004, object( {{"name","CLOCK ENABLE00"}   ,{"flds",array( {{7,"BIST"},{6,"MEM"},{5,"MCU"},{4,"OTP"},{3,"STB"},{2,"d5060"},{1,"TC"},{0,"AC"}} )} /**/}) }
+        , { 0x3005, object( {{"name","CLOCK ENABLE01"}   ,{"flds",array( {{7,"AWB"},{6,"AFC"},{5,"ISP"},{4,"FC"},{3,"S2P"},{2,"BLC"},{1,"AEC"},{0,"AEC"}} )} /**/}) }
+        , { 0x3006, object( {{"name","CLOCK ENABLE02"}   ,{"flds",array( {{7,"PSRAM"},{6,"FMT"},{5,"JPEG2x"},{3,"PEG"},{1,"MUX"},{0,"AVG"}} )} /**/}) }
+        , { 0x3007, object( {{"name","CLOCK ENABLE03"}   ,{"flds",array( {{7,"DGC"},{6,"SYNC FIFO"},{5,"ISPFC"},{4,"MIPI pclk"},{3,"MIPI clk"},{2,"DVP pclk"},{1,"VFIFO pclk"},{0,"VFIFO sclk"}} )} /**/}) }
         , { 0x3008, object( {{"name","SYSTEM CTROL0"}    ,{"flds",array( {{7,"soft-reset"},{6,"PD"}} )}                  }) }
         , { 0x300a, object( {{"name", "CHIP ID HIGH BYTE" }          }) }
         , { 0x300b, object( {{"name", "CHIP ID LOW BYTE" }           }) }
