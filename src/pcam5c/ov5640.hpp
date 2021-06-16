@@ -33,11 +33,22 @@
 namespace i2c_linux { class i2c; }
 constexpr static std::pair< uint8_t, uint8_t > ov5640_chipid_t = { 0x56, 0x40 };
 
+struct reg_value {
+	uint16_t reg_addr;
+	uint8_t val;
+	uint8_t mask;
+	uint32_t delay_ms;
+};
+
+
 class ov5640 {
 public:
     static const std::vector< std::pair< const uint16_t, boost::json::object > >& regs();
     static const std::vector< std::pair< const uint16_t, const uint8_t > >& cfg_init();
     static const std::vector< std::pair< const uint16_t, const uint8_t > >& cfg_1080p_30fps();
+
+    static const std::vector< reg_value >& setting_1080P_1920_1080();
+    static const std::vector< reg_value >& init_setting_30fps_VGA();
 
     std::optional< std::pair<uint8_t, uint8_t> > chipid( i2c_linux::i2c& ) const;
     bool reset( i2c_linux::i2c& ) const;

@@ -86,6 +86,8 @@ main( int argc, char **argv )
             ( "sstat",         "PCam 5c system status" )
             ( "pad",           "PCam 5c pad output status" )
             ( "sccb",          "PCam 5c SCCB status" )
+            ( "sysclk",        "Compute sysclk" )
+            ( "light_freq",    "Get light frequency" )
             ;
         po::positional_options_description p;
         p.add( "args",  -1 );
@@ -163,7 +165,8 @@ main( int argc, char **argv )
         pcam5c().read_regs( *i2c0::instance(), regs );
     }
     if ( vm.count( "frex" ) ) {
-        std::vector< std::string > regs = { "0x3b00", "0x3b01", "0x3b02", "0x3b03", "0x3b04", "0x3b05", "0x3b06"
+        std::vector< std::string > regs = {
+            "0x3b00", "0x3b01", "0x3b02", "0x3b03", "0x3b04", "0x3b05", "0x3b06"
             , "0x3b07", "0x3b08", "0x3b09", "0x3b0a", "0x3b0b", "0x3b0c" };
         pcam5c().read_regs( *i2c0::instance(), regs );
     }
@@ -174,7 +177,8 @@ main( int argc, char **argv )
         pcam5c().read_regs( *i2c0::instance(), regs );
     }
     if ( vm.count( "pad" ) ) {
-        std::vector< std::string > regs = { "0x3016", "0x3017", "0x3018", "0x3019", "0x301a"
+        std::vector< std::string > regs = {
+            "0x3016", "0x3017", "0x3018", "0x3019", "0x301a"
             , "0x301b", "0x301c", "0x301d", "0x301e", "0x301f", "0x300e", "0x3016", "0x302c" };
         pcam5c().read_regs( *i2c0::instance(), regs );
     }
@@ -188,6 +192,19 @@ main( int argc, char **argv )
     }
     if ( vm.count( "startup" ) ) {
         pcam5c().startup( *i2c0::instance() );
+    }
+    if ( vm.count( "sysclk" ) ) {
+        if ( auto sclk = pcam5c().get_sysclk( *i2c0::instance() ) ) {
+            std::cout << "sysclk: " << *sclk << std::endl;
+        } else {
+            std::cout << "sysclk: get failed" << std::endl;
+        }
+    }
+    if ( vm.count( "light_freq" ) ) {
+        if ( auto freq = pcam5c().get_light_freq( *i2c0::instance() ) )
+            std::cout << "light frequency: " << *freq << "Hz" << std::endl;
+        else
+            std::cout << "light frequency get failed\n";
     }
 
     return 0;

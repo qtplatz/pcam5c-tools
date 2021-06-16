@@ -24,9 +24,10 @@
 
 #pragma once
 
-#include <vector>
-#include <chrono>
 #include <boost/json.hpp>
+#include <chrono>
+#include <optional>
+#include <vector>
 
 using namespace std::chrono_literals;
 
@@ -47,4 +48,7 @@ public:
     bool gpio_state() const;
     bool gpio_value( bool ) const;
     bool gpio_reset( std::chrono::milliseconds twait = 5ms ) const; // off --> on (ov5640 manual describes 1ms wait)
+
+    std::optional< uint32_t > get_sysclk( i2c_linux::i2c& );
+    std::optional< uint32_t > get_light_freq(  i2c_linux::i2c& iic );
 };

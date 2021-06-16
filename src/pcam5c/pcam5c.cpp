@@ -38,6 +38,76 @@
 
 extern bool __verbose;
 
+namespace {
+    enum OV5640_REG {
+        OV5640_REG_SYS_RESET02          =	0x3002
+        , OV5640_REG_SYS_CLOCK_ENABLE02	=	0x3006
+        , OV5640_REG_SYS_CTRL0          =	0x3008
+        , OV5640_REG_SYS_CTRL0_SW_PWDN	=	0x42
+        , OV5640_REG_SYS_CTRL0_SW_PWUP	=	0x02
+        , OV5640_REG_CHIP_ID            =	0x300a
+        , OV5640_REG_IO_MIPI_CTRL00     =	0x300e
+        , OV5640_REG_PAD_OUTPUT_ENABLE01=	0x3017
+        , OV5640_REG_PAD_OUTPUT_ENABLE02=	0x3018
+        , OV5640_REG_PAD_OUTPUT00		=	0x3019
+        , OV5640_REG_SYSTEM_CONTROL1	=	0x302e
+        , OV5640_REG_SC_PLL_CTRL0		=	0x3034
+        , OV5640_REG_SC_PLL_CTRL1		=	0x3035
+        , OV5640_REG_SC_PLL_CTRL2		=	0x3036
+        , OV5640_REG_SC_PLL_CTRL3		=	0x3037
+        , OV5640_REG_SLAVE_ID           =	0x3100
+        , OV5640_REG_SCCB_SYS_CTRL1     =	0x3103
+        , OV5640_REG_SYS_ROOT_DIVIDER	=	0x3108
+        , OV5640_REG_AWB_R_GAIN         =	0x3400
+        , OV5640_REG_AWB_G_GAIN         =	0x3402
+        , OV5640_REG_AWB_B_GAIN         =	0x3404
+        , OV5640_REG_AWB_MANUAL_CTRL	=	0x3406
+        , OV5640_REG_AEC_PK_EXPOSURE_HI	=	0x3500
+        , OV5640_REG_AEC_PK_EXPOSURE_MED=	0x3501
+        , OV5640_REG_AEC_PK_EXPOSURE_LO	=	0x3502
+        , OV5640_REG_AEC_PK_MANUAL      =	0x3503
+        , OV5640_REG_AEC_PK_REAL_GAIN	=	0x350a
+        , OV5640_REG_AEC_PK_VTS         =	0x350c
+        , OV5640_REG_TIMING_DVPHO		=	0x3808
+        , OV5640_REG_TIMING_DVPVO		=	0x380a
+        , OV5640_REG_TIMING_HTS         =	0x380c
+        , OV5640_REG_TIMING_VTS         =	0x380e
+        , OV5640_REG_TIMING_TC_REG20	=	0x3820
+        , OV5640_REG_TIMING_TC_REG21	=	0x3821
+        , OV5640_REG_AEC_CTRL00         =	0x3a00
+        , OV5640_REG_AEC_B50_STEP		=	0x3a08
+        , OV5640_REG_AEC_B60_STEP		=	0x3a0a
+        , OV5640_REG_AEC_CTRL0D         =	0x3a0d
+        , OV5640_REG_AEC_CTRL0E         =	0x3a0e
+        , OV5640_REG_AEC_CTRL0F         =	0x3a0f
+        , OV5640_REG_AEC_CTRL10         =	0x3a10
+        , OV5640_REG_AEC_CTRL11         =	0x3a11
+        , OV5640_REG_AEC_CTRL1B         =	0x3a1b
+        , OV5640_REG_AEC_CTRL1E         =	0x3a1e
+        , OV5640_REG_AEC_CTRL1F         =	0x3a1f
+        , OV5640_REG_HZ5060_CTRL00      =	0x3c00
+        , OV5640_REG_HZ5060_CTRL01      =	0x3c01
+        , OV5640_REG_SIGMADELTA_CTRL0C	=	0x3c0c
+        , OV5640_REG_FRAME_CTRL01		=	0x4202
+        , OV5640_REG_FORMAT_CONTROL00	=	0x4300
+        , OV5640_REG_VFIFO_HSIZE		=	0x4602
+        , OV5640_REG_VFIFO_VSIZE		=	0x4604
+        , OV5640_REG_JPG_MODE_SELECT	=	0x4713
+        , OV5640_REG_CCIR656_CTRL00     =	0x4730
+        , OV5640_REG_POLARITY_CTRL00	=	0x4740
+        , OV5640_REG_MIPI_CTRL00		=	0x4800
+        , OV5640_REG_DEBUG_MODE         =	0x4814
+        , OV5640_REG_ISP_FORMAT_MUX_CTRL=	0x501f
+        , OV5640_REG_PRE_ISP_TEST_SET1	=	0x503d
+        , OV5640_REG_SDE_CTRL0          =	0x5580
+        , OV5640_REG_SDE_CTRL1          =	0x5581
+        , OV5640_REG_SDE_CTRL3          =	0x5583
+        , OV5640_REG_SDE_CTRL4          =	0x5584
+        , OV5640_REG_SDE_CTRL5          =	0x5585
+        , OV5640_REG_AVG_READOUT		=	0x56a1
+    };
+}
+
 void
 pcam5c::pprint( std::ostream& o,  const std::pair< const uint16_t, boost::json::object >& reg, uint8_t value ) const
 {
@@ -160,15 +230,23 @@ pcam5c::startup( i2c_linux::i2c& iic )
 
         std::this_thread::sleep_for(5ms);
 
-        for ( const auto& r: ov5640::cfg_init() )
-            write_reg( iic, r, __verbose );
-        for ( const auto& r: ov5640::cfg_1080p_30fps() )
-            write_reg( iic, r, __verbose );
+        // for ( const auto& r: ov5640::cfg_init() )
+        //     write_reg( iic, r, __verbose );
+        for ( const auto& reg: ov5640::init_setting_30fps_VGA() ) {
+            write_reg( iic, { reg.reg_addr, reg.val }, __verbose );
+        }
 
+        // for ( const auto& r: ov5640::cfg_1080p_30fps() )
+        for ( const auto& reg: ov5640::setting_1080P_1920_1080() ) {
+            write_reg( iic, { reg.reg_addr, reg.val }, __verbose );
+        }
+
+        iic.write_reg( OV5640_REG_IO_MIPI_CTRL00, 0x45 ); // on (0x40 for off)
+        iic.write_reg( OV5640_REG_FRAME_CTRL01,   0x00 ); // on (0x0f for off)
     } else {
         std::cerr << "gpio reset failed" << std::endl;
+        return false;
     }
-
     return true;
 }
 
@@ -205,4 +283,84 @@ pcam5c::gpio_reset( std::chrono::milliseconds twait ) const
         return true;
     }
     return false;
+}
+
+std::optional< uint32_t >
+pcam5c::get_sysclk( i2c_linux::i2c& iic )
+{
+	 /* calculate sysclk */
+	uint32_t xvclk = 24000000 / 10000;
+	uint32_t multiplier(0), prediv(0), VCO(0), sysdiv(0), pll_rdiv(0);
+	uint32_t sclk_rdiv_map[] = {1, 2, 4, 8};
+	uint32_t bit_div2x(1), sclk_rdiv(0), sysclk(0);
+
+    if ( auto ret = iic.read_reg( OV5640_REG_SC_PLL_CTRL0 ) ) {
+        uint8_t temp2 = *ret & 0x0f;
+        if (temp2 == 8 || temp2 == 10)
+            bit_div2x = temp2 / 2;
+    } else {
+        return {};
+    }
+    if ( auto ret = iic.read_reg( OV5640_REG_SC_PLL_CTRL1 ) ) {
+        sysdiv = *ret >> 4;
+        if (sysdiv == 0)
+            sysdiv = 16;
+    } else {
+        return {};
+    }
+
+    if ( auto ret = iic.read_reg(OV5640_REG_SC_PLL_CTRL2 ) ) {
+        multiplier = *ret;
+    } else {
+        return {};
+    }
+
+    if ( auto ret = iic.read_reg( OV5640_REG_SC_PLL_CTRL3 ) ) {
+        prediv = *ret & 0x0f;
+        pll_rdiv = ((*ret >> 4) & 0x01) + 1;
+    } else {
+        return {};
+    }
+
+    if ( auto ret = iic.read_reg( OV5640_REG_SYS_ROOT_DIVIDER ) ) {
+        uint8_t temp2 = *ret & 0x03;
+        sclk_rdiv = sclk_rdiv_map[temp2];
+    } else {
+        return {};
+    }
+
+	if (!prediv || !sysdiv || !pll_rdiv || !bit_div2x)
+		return {};
+
+	VCO = xvclk * multiplier / prediv;
+
+	sysclk = VCO / sysdiv / pll_rdiv * 2 / bit_div2x / sclk_rdiv;
+
+	return sysclk;
+}
+
+std::optional< uint32_t >
+pcam5c::get_light_freq(  i2c_linux::i2c& iic )
+{
+	/* get banding filter value */
+	if ( auto temp = iic.read_reg( OV5640_REG_HZ5060_CTRL01) ) {
+        if ( *temp & 0x80 ) { /* manual */
+            if ( auto temp1 = iic.read_reg( OV5640_REG_HZ5060_CTRL00 ) ) {
+                if (*temp1 & 0x04) {
+                    return 50; // light_freq = 50; /* 50Hz */
+                } else {
+                    return 60; // light_freq = 60; /* 60Hz */
+                }
+            }
+        } else { /* auto */
+            if ( auto temp1 = iic.read_reg( OV5640_REG_SIGMADELTA_CTRL0C ) ) {
+                if (*temp1 & 0x01) {
+                    return 50; // light_freq = 50; /* 50Hz */
+                } else {
+                    return 60; // light_freq = 60; /* 60Hz */
+                }
+            }
+        }
+    }
+    return {};
 }
