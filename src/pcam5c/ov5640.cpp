@@ -53,16 +53,16 @@ namespace {
         , { 0x3008, object( {{"name","SYSTEM CTROL0"}    ,{"flds",array( {{7,"soft-reset"},{6,"PD"}} )}                  }) }
         , { 0x300a, object( {{"name", "CHIP ID HIGH BYTE" }          }) }
         , { 0x300b, object( {{"name", "CHIP ID LOW BYTE" }           }) }
-        , { 0x300e, object( {{"name", "MIPI CONTROL 00"} ,{"flds",array( {{7,5,"lane_mode"},{4,"TxPD"},{3,"RxPD"},{2,"EN"}}             )}/**/}) }
-        , { 0x3016, object( {{"name", "PAD OUTPUT EN" }  ,{"flds",array( {{1,"strobe-out en"},{0,"siod-out en"}}                        )}/**/}) }
-        , { 0x3017, object( {{"name", "PAD OUTPUT EN" }  ,{"flds",array( {{7,"FREX"},{6,"VSYNC"},{5,"HREF"},{4,"PCLK"},{3,0,"D[9:6]"} } )}/**/}) }
+        , { 0x300e, object( {{"name", "MIPI CONTROL 00"} ,{"flds",array( {{7,5,"l-mode"},{4,"TxPD"},{3,"RxPD"},{2,"EN"}}             )}/**/}) }
+        , { 0x3016, object( {{"name", "PAD OUTPUT EN" }  ,{"flds",array( {{1,"strb-oe"} ,{0,"siod-oe"}}                        )}/**/}) }
+        , { 0x3017, object( {{"name", "PAD OUTPUT EN" }  ,{"flds",array( {{7,"FREX"}    ,{6,"VSYNC"},{5,"HREF"},{4,"PCLK"},{3,0,"D[9:6]"} } )}/**/}) }
         , { 0x3018, object( {{"name", "PAD OUTPUT EN" }  ,{"flds",array( {{7,2,"D[5:0]"},{1,"GPIO1"},{0,"GPIO0"}             }          )}/**/}) }
-        , { 0x3019, object( {{"name", "PAD OUTPUT VAL"}  ,{"flds",array( {{7,"MIPI"},{6,"L2ST"},{5,"L1ST"},{4,"CLST"},{1,"STB"},{0,"SIOD"} } )}/**/}) }
-        , { 0x301a, object( {{"name", "GPIO VALUE 01"}   ,{"flds",array( {{7,"FREX"},{6,"VSYNC"},{5,"HREF"},{4,"PCLK"},{3,0,"D[9:6]"} } )}/**/}) }
+        , { 0x3019, object( {{"name", "PAD OUTPUT VAL"}  ,{"flds",array( {{7,"MIPI"}    ,{6,"L2ST"},{5,"L1ST"},{4,"CLST"},{1,"STB"},{0,"SIOD"} } )}/**/}) }
+        , { 0x301a, object( {{"name", "GPIO VALUE 01"}   ,{"flds",array( {{7,"FREX"}    ,{6,"VSYNC"},{5,"HREF"},{4,"PCLK"},{3,0,"D[9:6]"} } )}/**/}) }
         , { 0x301b, object( {{"name", "GPIO VALUE 02"}   ,{"flds",array( {{7,2,"D[5:0]"},{1,"GPIO1"},{0,"GPIO0"}             } )}/**/}) }
-        , { 0x301c, object( {{"name", "OutSEL for GPIO"} ,{"flds",array( {{1,"IO_STRB"},{0,"IO_SIOD"}            } )}/**/}) }
-        , { 0x301d, object( {{"name", "OutSEL for GPIO"} ,{"flds",array( {{7,"FREX"},{6,"VSYNC"},{5,"HREF"},{4,"PCLK"},{3,0,"D[9:6]"} } )}/**/}) }
-        , { 0x301e, object( {{"name", "OutSEL for GPIO"} ,{"flds",array( {{7,2,"D[5:0]SEL"},{1,"GPIO1"},{0,"GPIO0"}          } )}/**/}) }
+        , { 0x301c, object( {{"name", "OutSEL for GPIO"} ,{"flds",array( {{1,"IO_STRB"} ,{0,"IO_SIOD"}            } )}/**/}) }
+        , { 0x301d, object( {{"name", "OutSEL for GPIO"} ,{"flds",array( {{7,"FREX"}    ,{6,"VSYNC"},{5,"HREF"},{4,"PCLK"},{3,0,"D[9:6]"} } )}/**/}) }
+        , { 0x301e, object( {{"name", "OutSEL for GPIO"} ,{"flds",array( {{7,2,"D[5:0]sel(X)"},{1,"GPIO1"},{0,"GPIO0"}          } )}/**/}) }
         , { 0x302a, object( {{"name", "CHIP REVISIOHN" }               }) }
         , { 0x302c, object( {{"name", "PAD CONTROL 00" }               }) }
 
@@ -169,21 +169,21 @@ namespace {
         , { 0x3a20, object( {{"name", "LED CTRL20" }               }) }
         , { 0x3a21, object( {{"name", "LED CTRL21" }               }) }
         , { 0x3a25, object( {{"name", "LED CTRL25" }               }) }
-        , { 0x3b00, object( {{"name", "STROBE CTRL" }               }) }
-        , { 0x3b01, object( {{"name", "FREX EXPOSURE 02" }               }) }
-        , { 0x3b02, object( {{"name", "FREX SHUTTER DELAY 01" }               }) }
-        , { 0x3b03, object( {{"name", "FREX SHUTTER DELAY 00" }               }) }
-        , { 0x3b04, object( {{"name", "FREX EXPOSURE 01" }               }) }
-        , { 0x3b05, object( {{"name", "FREX EXPOSURE 00" }               }) }
-        , { 0x3b06, object( {{"name", "FREX CTRL 07" }               }) }
-        , { 0x3b07, object( {{"name", "FREX MODE" }               }) }
-        , { 0x3b08, object( {{"name", "FREX REQUEST" }               }) }
+        , { 0x3b00, object( {{"name", "STROBE CTRL" }       ,{"flds",array( {{7,"STRBrq"},{6,"STBneg"},{3,2,"W-Xe"},{1,0,"STBmode"}}   )}/**/}) }
+        , { 0x3b01, object( {{"name", "FREX EXPOSURE" }     ,{"flds",array( {{7,0,"EXP time[23:16]"}}                                  )}/**/}) }
+        , { 0x3b02, object( {{"name", "FREX SHUTTER DELAY"} ,{"flds",array( {{5,0,"Shutter delay[12:8]"}}                              )}/**/}) }
+        , { 0x3b03, object( {{"name", "FREX SHUTTER DELAY"} ,{"flds",array( {{5,0,"Shutter delay[7,0](64 x clk)"}}                     )}/**/}) }
+        , { 0x3b04, object( {{"name", "FREX EXPOSURE" }     ,{"flds",array( {{7,0,"EXP time[15:8]"}}                                   )}/**/}) }
+        , { 0x3b05, object( {{"name", "FREX EXPOSURE" }     ,{"flds",array( {{7,0,"EXP time[7:0](Tline)"}}                             )}/**/}) }
+        , { 0x3b06, object( {{"name", "FREX CTRL 07" }      ,{"flds",array( {{7,4,"FREX frame delay"},{3,0,"STRB width"}}              )}/**/}) }
+        , { 0x3b07, object( {{"name", "FREX MODE" }         ,{"flds",array( {{1,0,"FREX mode"}}                                        )}/**/}) }
+        , { 0x3b08, object( {{"name", "FREX REQUEST" }                  }) }
         , { 0x3b09, object( {{"name", "FREX HREF DELAY" }               }) }
-        , { 0x3b0a, object( {{"name", "FREX RST LENGTH" }               }) }
-        , { 0x3b0b, object( {{"name", "STROBE WIDTH" }               }) }
-        , { 0x3b0c, object( {{"name", "STROBE WIDTH" }               }) }
-        , { 0x3c00, object( {{"name", "5060HZ CTRL00" }               }) }
+        , { 0x3b0a, object( {{"name", "FREX RST LENGTH" }   ,{"flds",array( {{2,0,"FREX precharge length"}}          )}/**/}) }
+        , { 0x3b0b, object( {{"name", "STROBE WIDTH" }      ,{"flds",array( {{2,0,"STRB width[19:12]"}}              )}/**/}) }
+        , { 0x3b0c, object( {{"name", "STROBE WIDTH" }      ,{"flds",array( {{7,0,"STRB width[11:4]"}}               )}/**/}) }
 
+        , { 0x3c00, object( {{"name", "5060HZ CTRL00" }               }) }
         , { 0x3c01, object( {{"name", "5060HZ CTRL01" }               }) }
         , { 0x3c02, object( {{"name", "5060HZ CTRL02" }               }) }
         , { 0x3c03, object( {{"name", "5060HZ CTRL03" }               }) }
@@ -644,6 +644,89 @@ namespace {
 		, {0x5001, 0x03}
 	};
 
+    // config_word_t const cfg_1080p_30fps_[] =
+    const std::vector< std::pair< const uint16_t, const uint8_t > > __cfg_1080p_30fps = {
+        //1920 x 1080 @ 30fps, RAW10, MIPISCLK=420, SCLK=84MHz, PCLK=84M
+		//PLL1 configuration
+		//[7:4]=0010 System clock divider /2, [3:0]=0001 Scale divider for MIPI /1
+		{0x3035, 0x21} // 30fps setting
+		//[7:0]=105 PLL multiplier
+		, {0x3036, 0x69}
+		//[4]=0 PLL root divider /1, [3:0]=5 PLL pre-divider /1.5
+		, {0x3037, 0x05}
+		//[5:4]=01 PCLK root divider /2, [3:2]=00 SCLK2x root divider /1, [1:0]=01 SCLK root divider /2
+		, {0x3108, 0x11}
+
+		//[6:4]=001 PLL charge pump, [3:0]=1010 MIPI 10-bit mode
+		, {0x3034, 0x1A}
+
+		//[3:0]=0 X address start high byte
+		, {0x3800, (336 >> 8) & 0x0F}
+		//[7:0]=0 X address start low byte
+		, {0x3801, 336 & 0xFF}
+		//[2:0]=0 Y address start high byte
+		, {0x3802, (426 >> 8) & 0x07}
+		//[7:0]=0 Y address start low byte
+		, {0x3803, 426 & 0xFF}
+
+		//[3:0] X address end high byte
+		, {0x3804, (2287 >> 8) & 0x0F}
+		//[7:0] X address end low byte
+		, {0x3805, 2287 & 0xFF}
+		//[2:0] Y address end high byte
+		, {0x3806, (1529 >> 8) & 0x07}
+		//[7:0] Y address end low byte
+		, {0x3807, 1529 & 0xFF}
+
+		//[3:0]=0 timing hoffset high byte
+		, {0x3810, (16 >> 8) & 0x0F}
+		//[7:0]=0 timing hoffset low byte
+		, {0x3811, 16 & 0xFF}
+		//[2:0]=0 timing voffset high byte
+		, {0x3812, (12 >> 8) & 0x07}
+		//[7:0]=0 timing voffset low byte
+		, {0x3813, 12 & 0xFF}
+
+		//[3:0] Output horizontal width high byte
+		, {0x3808, (1920 >> 8) & 0x0F}
+		//[7:0] Output horizontal width low byte
+		, {0x3809, 1920 & 0xFF}
+		//[2:0] Output vertical height high byte
+		, {0x380a, (1080 >> 8) & 0x7F}
+		//[7:0] Output vertical height low byte
+		, {0x380b, 1080 & 0xFF}
+
+		//HTS line exposure time in # of pixels Tline=HTS/sclk
+		, {0x380c, (2500 >> 8) & 0x1F}
+		, {0x380d, 2500 & 0xFF}
+		//VTS frame exposure time in # lines
+		, {0x380e, (1120 >> 8) & 0xFF}
+		, {0x380f, 1120 & 0xFF}
+
+		//[7:4]=0x1 horizontal odd subsample increment, [3:0]=0x1 horizontal even subsample increment
+		, {0x3814, 0x11}
+		//[7:4]=0x1 vertical odd subsample increment, [3:0]=0x1 vertical even subsample increment
+		, {0x3815, 0x11}
+
+		//[2]=0 ISP mirror, [1]=0 sensor mirror, [0]=0 no horizontal binning
+		, {0x3821, 0x00}
+
+		//little MIPI shit: global timing unit, period of PCLK in ns * 2(depends on # of lanes)
+		, {0x4837, 24} // 1/84M*2
+
+		//Undocumented anti-green settings
+		, {0x3618, 0x00} // Removes vertical lines appearing under bright light
+		, {0x3612, 0x59}
+		, {0x3708, 0x64}
+		, {0x3709, 0x52}
+		, {0x370c, 0x03}
+
+		//[7:4]=0x0 Formatter RAW, [3:0]=0x0 BGBG/GRGR
+		, {0x4300, 0x00}
+		//[2:0]=0x3 Format select ISP RAW (DPC)
+		, {0x501f, 0x03}
+	};
+
 }
 
 const std::vector< std::pair< const uint16_t, object > >&
@@ -656,4 +739,10 @@ const std::vector< std::pair< const uint16_t, const uint8_t > >&
 ov5640::cfg_init()
 {
     return __cfg_init;
+}
+
+const std::vector< std::pair< const uint16_t, const uint8_t > >&
+ov5640::cfg_1080p_30fps()
+{
+    return __cfg_1080p_30fps;
 }

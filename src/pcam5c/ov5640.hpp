@@ -37,6 +37,7 @@ class ov5640 {
 public:
     static const std::vector< std::pair< const uint16_t, boost::json::object > >& regs();
     static const std::vector< std::pair< const uint16_t, const uint8_t > >& cfg_init();
+    static const std::vector< std::pair< const uint16_t, const uint8_t > >& cfg_1080p_30fps();
 
     std::optional< std::pair<uint8_t, uint8_t> > chipid( i2c_linux::i2c& ) const;
     bool reset( i2c_linux::i2c& ) const;

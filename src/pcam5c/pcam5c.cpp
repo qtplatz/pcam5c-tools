@@ -153,14 +153,20 @@ pcam5c::startup( i2c_linux::i2c& iic )
             return false;
         }
     }
-    gpio_reset();
-    write_reg( iic, {0x3103, 0x11}, __verbose ); // ??? something wrong
-    write_reg( iic, {0x3008, 0x82}, __verbose ); // software reset (b7 = 1)
+    if ( gpio_reset() ) {
+        write_reg( iic, {0x3103, 0x11}, __verbose ); // ??? something wrong
+        write_reg( iic, {0x3008, 0x82}, __verbose ); // software reset (b7 = 1)
 
-    std::this_thread::sleep_for(1s);
+        std::this_thread::sleep_for(5ms);
 
-    for ( const auto& r: ov5640::cfg_init() )
-        write_reg( iic, r, __verbose );
+        for ( const auto& r: ov5640::cfg_init() )
+            write_reg( iic, r, __verbose );
+        for ( const auto& r: ov5640::cfg_1080p_30fps() )
+            write_reg( iic, r, __verbose );
+
+    } else {
+        std::cerr << "gpio reset failed" << std::endl;
+    }
 
     return true;
 }
