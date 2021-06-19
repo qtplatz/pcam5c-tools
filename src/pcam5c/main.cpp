@@ -88,6 +88,8 @@ main( int argc, char **argv )
             ( "sccb",          "PCam 5c SCCB status" )
             ( "sysclk",        "Compute sysclk" )
             ( "light_freq",    "Get light frequency" )
+            ( "csi2rx",        "CSI2 RX register" )
+            ( "d_phyrx",       "MIPI D-PHY RX register" )
             ;
         po::positional_options_description p;
         p.add( "args",  -1 );

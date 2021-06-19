@@ -25,6 +25,8 @@ add_executable( ${PROJECT_NAME}
   i2c.hpp
   ov5640.cpp
   ov5640.hpp
+  csi2rx.cpp
+  csi2rx.hpp
   )
 
 target_link_libraries( ${PROJECT_NAME} LINK_PUBLIC

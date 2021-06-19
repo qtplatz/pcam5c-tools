@@ -46,11 +46,11 @@ set ( KERNELRELEASE "xlnx" )
 add_subdirectory ( src )
 
 include( CPackComponent )
-cpack_add_component( pcam5c-tools  DISPLAY_NAME "pcam5c tools" GROUP tools )
+cpack_add_component( pcam5c  DISPLAY_NAME "pcam5c tools" GROUP tools )
 cpack_add_component_group( tools )
 
 set( CPACK_DEB_COMPONENT_INSTALL 1 )
-set( CPACK_PACKAGE_NAME pcam5c-tools )
+set( CPACK_PACKAGE_NAME pcam5c )
 set( CPACK_PACKAGE_VENDOR "MS-Cheminformatics LLC" )
 set( CPACK_PACKAGE_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_TWEAK} )
 set( CPACK_PACKAGE_VERSION_MAJOR ${VERSION_MAJOR} )

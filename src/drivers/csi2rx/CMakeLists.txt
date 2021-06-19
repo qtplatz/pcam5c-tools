@@ -27,8 +27,6 @@ configure_file (
 
 #--------------- DKMS ------------------
 if ( DKMS )
-  set ( RequiredStart "httpd-dg" )
-  set ( RequiredStop "httpd-dg" )
   include( ${DKMS}/dkms.cmake )
 endif()
 #--------------- DKMS ------------------

@@ -179,7 +179,7 @@ static ssize_t dgmod_cdev_read( struct file * file, char __user* data, size_t si
             dev_info(&__pdev->dev, "%s: down_interruptible for read faild\n", __func__ );
             return -ERESTARTSYS;
         }
-        dgmod_cdev_private * private_data = file->private_data;
+        struct dgmod_cdev_private * private_data = file->private_data;
 
         //size_t dsize = drv->mem_resource->end - (drv->mem_resource->start + *f_pos);
         size_t dsize = private_data->size - *f_pos;
@@ -240,10 +240,10 @@ dgmod_cdev_llseek( struct file * file, loff_t offset, int orig )
         pos = offset;
         break;
     case 1: // SEEK_CUR
-        pos + offset;
+        pos = pos + offset;
         break;
     case 2: // SEEK_END
-        pos + offset;
+        pos = pos + offset;
         break;
     default:
         return -EINVAL;
