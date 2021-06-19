@@ -104,12 +104,13 @@ d_phy_rx_proc_read( struct seq_file * m, void * v )
     struct mipi_d_phy_rx_driver * drv = platform_get_drvdata( __pdev );
     if ( drv ) {
         seq_printf( m
-                    , "d_phy_rx mem resource: %x -- %x, map to %p\n"
+                    , "d_phy_rx mem resource: %x -- %x, map to %pK\n"
                     , __pdev->resource->start, __pdev->resource->end, drv->iomem );
-        for ( size_t i = 0; i < 0x10; ++i ) {
-            const u32 * reg = drv->iomem;
-            seq_printf( m, "%p\t%08x\n", reg, *reg );
-            ++reg;
+        u32 addr = __pdev->resource->start;
+        for ( u32 i = 0; i < 16; ++i ) {
+            const u32 * p = (u32*)( ((u8 *)drv->iomem) + (i * 16));
+            seq_printf( m, "%08x: %08x %08x\t%08x %08x\n", addr, p[0], p[1], p[2], p[3] );
+            addr += 4 * sizeof(*p);
         }
     }
     return 0;
@@ -331,15 +332,6 @@ d_phy_rx_module_probe( struct platform_device * pdev )
     __pdev = pdev;
     dev_info( &pdev->dev, "d_phy_rx_module probed" );
 
-	drv->rst_gpio = devm_gpiod_get_optional(&pdev->dev, "video-reset", GPIOD_OUT_HIGH);
-	if ( IS_ERR( drv->rst_gpio ) ) {
-		if ( PTR_ERR( drv->rst_gpio ) != -EPROBE_DEFER )
-			dev_err(&pdev->dev, "Video Reset GPIO not setup in DT");
-		return PTR_ERR( drv->rst_gpio );
-	}
-	/* ret = xd_phy_rxss_parse_of(xd_phy_rxss); */
-	/* if (ret < 0) */
-	/* 	return ret; */
 	drv->iomem = devm_platform_ioremap_resource(pdev, 0);
 	if ( IS_ERR( drv->iomem ) ) {
         dev_err(&pdev->dev, "iomem get failed");
@@ -377,8 +369,7 @@ d_phy_rx_module_remove( struct platform_device * pdev )
 }
 
 static const struct of_device_id __d_phy_rx_module_id [] = {
-    { .compatible = "xlnx,mipi-csi2-rx-subsystem-5.1" }
-    , { .compatible = "xlnx,MIPI-CSI-2-RX-1.2" }
+    { .compatible = "xlnx,MIPI-D-PHY-RX-1.3" }
     , {}
 };
 

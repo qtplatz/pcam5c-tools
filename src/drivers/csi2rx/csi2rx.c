@@ -207,15 +207,23 @@ csi2rx_proc_read( struct seq_file * m, void * v )
     struct xcsi2rxss_state * drv = platform_get_drvdata( __pdev );
     if ( drv ) {
         seq_printf( m
-                    , "csi2rx mem resource: %x -- %x, map to %p\n"
+                    , "csi2rx mem resource: %x -- %x, map to %pK\n"
                     , __pdev->resource->start, __pdev->resource->end, drv->iomem );
+#if 0
         for ( size_t i = 0; i < countof( __core_register ); ++i ) {
             seq_printf( m, "0x%04x\t%08x\t%s\n"
                         , __core_register[ i ].offset
                         , xcsi2rxss_read( drv, __core_register[ i ].offset )
                         , __core_register[ i ].name );
         }
-
+#else
+        u32 addr = __pdev->resource->start;
+        for ( u32 i = 0; i < 8; ++i ) {
+            const u32 * p = (u32*)( ((u8 *)drv->iomem) + (i * 16));
+            seq_printf( m, "%08x: %08x %08x\t%08x %08x\n", addr, p[0], p[1], p[2], p[3] );
+            addr += 4*sizeof(p[0]);
+        }
+#endif
     }
     return 0;
 }
@@ -429,22 +437,21 @@ static int
 csi2rx_module_probe( struct platform_device * pdev )
 {
     int irq = 0;
+    dev_info( &pdev->dev, "csi2rx_module probed" );
+
     struct xcsi2rxss_state * drv = devm_kzalloc( &pdev->dev, sizeof( struct xcsi2rxss_state ), GFP_KERNEL );
     if ( ! drv )
         return -ENOMEM;
 
     __pdev = pdev;
-    dev_info( &pdev->dev, "csi2rx_module probed" );
-
+#if 0
 	drv->rst_gpio = devm_gpiod_get_optional(&pdev->dev, "video-reset", GPIOD_OUT_HIGH);
 	if ( IS_ERR( drv->rst_gpio ) ) {
 		if ( PTR_ERR( drv->rst_gpio ) != -EPROBE_DEFER )
 			dev_err(&pdev->dev, "Video Reset GPIO not setup in DT");
 		return PTR_ERR( drv->rst_gpio );
 	}
-	/* ret = xcsi2rxss_parse_of(xcsi2rxss); */
-	/* if (ret < 0) */
-	/* 	return ret; */
+#endif
 	drv->iomem = devm_platform_ioremap_resource(pdev, 0);
 	if ( IS_ERR( drv->iomem ) ) {
         dev_err(&pdev->dev, "iomem get failed");
@@ -482,8 +489,8 @@ csi2rx_module_remove( struct platform_device * pdev )
 }
 
 static const struct of_device_id __csi2rx_module_id [] = {
-    { .compatible = "xlnx,mipi-csi2-rx-subsystem-5.1" }
-    , { .compatible = "xlnx,MIPI-CSI-2-RX-1.2" }
+    { .compatible = "xlnx,MIPI-CSI-2-RX-1.2" }
+    , { .compatible = "xlnx,mipi-csi2-rx-subsystem-5.1" }
     , {}
 };
 

@@ -27,5 +27,5 @@
 #include <linux/version.h>
 #include <linux/cdev.h>
 
-#define MODNAME     "csi2rx"
+#define MODNAME     "d_phyrx"
 #define CDEV_NAME   MODNAME
