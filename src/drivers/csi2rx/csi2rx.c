@@ -270,7 +270,7 @@ static int csi2rx_cdev_open(struct inode *inode, struct file *file)
                                      , GFP_KERNEL );
     if ( private_data ) {
         private_data->node =  MINOR( inode->i_rdev );
-        private_data->size = 64 * 4;
+        private_data->size = 0x100;
         file->private_data = private_data;
     }
 

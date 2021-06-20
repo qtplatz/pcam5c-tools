@@ -25,6 +25,8 @@
 #include "gpio.hpp"
 #include "i2c.hpp"
 #include "pcam5c.hpp"
+#include "csi2rx.hpp"
+#include "d_phyrx.hpp"
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -39,6 +41,20 @@
 #include <boost/endian.hpp>
 #include <boost/format.hpp>
 #include <boost/program_options.hpp>
+
+enum ADDR {
+    CR_OFFSET = 0
+    , VERSION_OFFSET = 0x0c
+};
+
+enum MASK {
+    CR_ENABLE_MASK = 0x02
+    , CR_RESET_MASK = 0x01
+    , VERSION_MAJOR_MASK = 0xFFFF0000
+    , VERSION_MAJOR_SHIFT = 16
+    , VERSION_MINOR_MASK = 0x0000FFFF
+    , VERSION_MINOR_SHIFT = 0
+};
 
 const static char * i2cdev = "/dev/i2c-0";
 bool __verbose = true;
@@ -90,6 +106,7 @@ main( int argc, char **argv )
             ( "light_freq",    "Get light frequency" )
             ( "csi2rx",        "CSI2 RX register" )
             ( "d_phyrx",       "MIPI D-PHY RX register" )
+            ( "init",          "CSI2 RX & MIPI D-PHY RX initialize" )
             ;
         po::positional_options_description p;
         p.add( "args",  -1 );
@@ -207,6 +224,32 @@ main( int argc, char **argv )
             std::cout << "light frequency: " << *freq << "Hz" << std::endl;
         else
             std::cout << "light frequency get failed\n";
+    }
+
+    if ( vm.count( "csi2rx" ) ) {
+        csi2rx().dump();
+    }
+    if ( vm.count( "d_phyrx" ) ) {
+        d_phyrx().dump();
+    }
+
+    if ( vm.count( "init" ) ) {
+        csi2rx()( CR_OFFSET, (CR_RESET_MASK & ~CR_ENABLE_MASK) );
+        d_phyrx()( CR_OFFSET, (CR_RESET_MASK & ~CR_ENABLE_MASK) );
+        // GAMMA_BASE WRITE 3
+
+        // vdma.configureWire
+        // vdma.enable write
+
+        csi2rx()( CR_OFFSET, CR_ENABLE_MASK );
+        d_phyrx()( CR_OFFSET, CR_ENABLE_MASK );
+
+        // vid.reset
+        // vdma.resetRead.
+        // vid.configurewire
+        // vdma.configureRead
+        // vid.enable
+        // vdma.enableRead
     }
 
     return 0;

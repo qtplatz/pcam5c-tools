@@ -37,6 +37,7 @@
 #include <linux/irq.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/miscdevice.h>
 #include <linux/proc_fs.h> // create_proc_entry
 #include <linux/seq_file.h>
 #include <linux/string.h>
@@ -103,8 +104,9 @@ struct vdma_driver {
 };
 
 struct vdma_cdev_reader {
-    struct vdma_driver * driver;
-    u32 rp;
+    struct vdma_driver * drv;
+    u32 minor;
+    u32 size;
 };
 
 enum { dg_data_irq_mask = 2 };
@@ -407,16 +409,29 @@ static const struct proc_ops proc_file_fops = {
 
 static int vdma_cdev_open(struct inode *inode, struct file *file)
 {
-    unsigned int node = MINOR( inode->i_rdev );
-    (void)node;
+    unsigned int minor = MINOR( inode->i_rdev );
+    struct vdma_cdev_reader * reader = devm_kzalloc( &__pdev->dev, sizeof( struct vdma_cdev_reader ), GFP_KERNEL );
+    reader->drv = platform_get_drvdata( __pdev );
+    reader->minor = minor;
+    file->private_data = reader;
+    if ( minor == 0 ) {
+        reader->size = __pdev->resource->end - __pdev->resource->start + 1;
+    }
+
+    dev_info( &__pdev->dev, "vdma_cdev_open minor=%d\n", minor );
+
     return 0;
 }
 
 static int
 vdma_cdev_release( struct inode *inode, struct file *file )
 {
-    unsigned int node = MINOR( inode->i_rdev );
-    (void)node;
+    unsigned int minor = MINOR( inode->i_rdev );
+    dev_info( &__pdev->dev, "vdma_cdev_release node=%d\n", minor );
+
+    if ( file->private_data )
+        devm_kfree( &__pdev->dev, file->private_data );
+
     return 0;
 }
 
@@ -427,6 +442,20 @@ static long vdma_cdev_ioctl( struct file * file, unsigned int code, unsigned lon
 
 static ssize_t vdma_cdev_read( struct file * file, char __user *data, size_t size, loff_t *f_pos )
 {
+    struct vdma_cdev_reader * reader = 0;
+    if (( reader = file->private_data )) {
+        dev_info( &__pdev->dev, "vdma_cdev_read: fpos=%llx, size=%ud\n", *f_pos, size );
+        if ( reader->minor == 0 ) {
+            size_t dsize = reader->size - *f_pos;
+            if ( dsize > size )
+                dsize = size;
+            if ( copy_to_user( data, (const char *)reader->drv->iomem + (*f_pos), dsize ) ) {
+                return -EFAULT;
+            }
+            *f_pos += dsize;
+            return dsize;
+        }
+    }
     return size;
 }
 
@@ -459,6 +488,21 @@ static struct file_operations vdma_cdev_fops = {
     , .read    = vdma_cdev_read
     , .write   = vdma_cdev_write
     , .mmap    = vdma_cdev_mmap
+};
+
+static struct miscdevice vdma_miscdevice [] = {
+    {
+        .minor = MISC_DYNAMIC_MINOR
+        , .name = "vdma0"
+        , .fops = &vdma_cdev_fops
+        , .mode = 0666
+    }
+    , {
+        .minor = MISC_DYNAMIC_MINOR
+        , .name = "vdma1"
+        , .fops = &vdma_cdev_fops
+        , .mode = 0666
+    }
 };
 
 static dev_t vdma_dev_t = 0;
@@ -566,6 +610,11 @@ vdma_module_probe( struct platform_device * pdev )
         }
     }
 
+    for ( int i = 0; i < countof( vdma_miscdevice ); ++i ) {
+        misc_register( &vdma_miscdevice[i] );
+        dev_info( &pdev->dev, "minor=%d\n", vdma_miscdevice[i].minor );
+    }
+
     platform_set_drvdata( pdev, drv );
 
     int i = 0;
@@ -595,6 +644,10 @@ vdma_module_remove( struct platform_device * pdev )
         dma_free_coherent( &pdev->dev, dma_size, drv->dma_vaddr[ i ], drv->dma_handle[ i ] );
         // dev_info( &pdev->dev, "dma addr %x about to be freed\n", drv->dma_handle[ i ] );
     }
+
+    for ( int i = 0; i < countof( vdma_miscdevice ); ++i )
+        misc_deregister( &vdma_miscdevice[i] );
+
     dev_info( &pdev->dev, "Unregistered.\n" );
 
     return 0;

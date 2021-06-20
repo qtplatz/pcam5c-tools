@@ -25,8 +25,12 @@ add_executable( ${PROJECT_NAME}
   i2c.hpp
   ov5640.cpp
   ov5640.hpp
+  uio.cpp
+  uio.hpp
   csi2rx.cpp
   csi2rx.hpp
+  d_phyrx.cpp
+  d_phyrx.hpp
   )
 
 target_link_libraries( ${PROJECT_NAME} LINK_PUBLIC
